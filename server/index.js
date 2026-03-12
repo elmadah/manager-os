@@ -18,10 +18,12 @@ if (process.env.NODE_ENV === 'production') {
 const projectsRouter = require('./routes/projects');
 const featuresRouter = require('./routes/features');
 const teamRouter = require('./routes/team');
+const todosRouter = require('./routes/todos');
 
 app.use('/api/projects', projectsRouter);
 app.use('/api', featuresRouter);
 app.use('/api/team', teamRouter);
+app.use('/api/todos', todosRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
