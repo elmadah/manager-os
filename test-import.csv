@@ -1,0 +1,6 @@
+Issue key,Summary,Sprint,Status,Assignee,Story Points,Resolved
+PROJ-1,User login page,Sprint 1,In Progress,John Doe,3,
+PROJ-2,Password reset flow,Sprint 1,Done,Jane Smith,5,2026-03-10
+PROJ-3,Dashboard widgets,Sprint 2,To Do,,8,
+PROJ-4,API rate limiting,Sprint 1,In Review,John Doe,2,
+PROJ-5,Database migrations,Sprint 2,In Progress,Jane Smith,3,
