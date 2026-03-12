@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, FolderKanban, Users, AlertTriangle, Zap, ShieldAlert } from 'lucide-react';
 import api from '../lib/api';
 import CreateProjectModal from '../components/CreateProjectModal';
+import Timeline from '../components/timeline/Timeline';
 
 const STATUS_STYLES = {
   upcoming: 'bg-gray-100 text-gray-700',
@@ -129,6 +130,11 @@ export default function HomePage() {
           ))}
         </div>
       )}
+
+      {/* Project Timeline */}
+      <div className="mt-8">
+        <Timeline />
+      </div>
 
       <CreateProjectModal
         isOpen={showCreateModal}

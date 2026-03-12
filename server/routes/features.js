@@ -37,6 +37,8 @@ router.get('/projects/:projectId/features', (req, res) => {
       description: f.description,
       status: f.status,
       priority: f.priority,
+      start_date: f.start_date,
+      target_date: f.target_date,
       created_at: f.created_at,
       updated_at: f.updated_at,
       story_stats: {
@@ -60,13 +62,13 @@ router.post('/projects/:projectId/features', (req, res) => {
     const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(req.params.projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
-    const { name, description, status, priority } = req.body;
+    const { name, description, status, priority, start_date, target_date } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
     const result = db.prepare(`
-      INSERT INTO features (project_id, name, description, status, priority)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(req.params.projectId, name, description || '', status || 'not_started', priority || 'medium');
+      INSERT INTO features (project_id, name, description, status, priority, start_date, target_date)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(req.params.projectId, name, description || '', status || 'not_started', priority || 'medium', start_date || null, target_date || null);
 
     const feature = db.prepare('SELECT * FROM features WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(feature);
@@ -124,16 +126,18 @@ router.put('/features/:id', (req, res) => {
     const existing = db.prepare('SELECT * FROM features WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Feature not found' });
 
-    const { name, description, status, priority } = req.body;
+    const { name, description, status, priority, start_date, target_date } = req.body;
     db.prepare(`
       UPDATE features SET
         name = COALESCE(?, name),
         description = COALESCE(?, description),
         status = COALESCE(?, status),
         priority = COALESCE(?, priority),
+        start_date = COALESCE(?, start_date),
+        target_date = COALESCE(?, target_date),
         updated_at = datetime('now')
       WHERE id = ?
-    `).run(name, description, status, priority, req.params.id);
+    `).run(name, description, status, priority, start_date, target_date, req.params.id);
 
     const feature = db.prepare('SELECT * FROM features WHERE id = ?').get(req.params.id);
     res.json(feature);

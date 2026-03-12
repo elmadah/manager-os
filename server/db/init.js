@@ -16,4 +16,16 @@ db.pragma('foreign_keys = ON');
 const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
 db.exec(schema);
 
+// Migrations for existing databases
+function migrate(table, column, type) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.find(c => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
+}
+
+migrate('projects', 'color', "TEXT DEFAULT '#3B82F6'");
+migrate('features', 'start_date', 'TEXT');
+migrate('features', 'target_date', 'TEXT');
+
 module.exports = db;

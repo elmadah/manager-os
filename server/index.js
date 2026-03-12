@@ -24,6 +24,7 @@ const oneOnOnesRouter = require('./routes/oneOnOnes');
 const notesRouter = require('./routes/notes');
 const digestRouter = require('./routes/digest');
 const backupRouter = require('./routes/backup');
+const timelineRouter = require('./routes/timeline');
 
 app.use('/api/projects', projectsRouter);
 app.use('/api', featuresRouter);
@@ -36,6 +37,7 @@ app.use('/api', oneOnOnesRouter);
 app.use('/api/notes', notesRouter);
 app.use('/api/digest', digestRouter);
 app.use('/api', backupRouter);
+app.use('/api/timeline', timelineRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

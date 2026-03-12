@@ -32,6 +32,7 @@ router.get('/', (req, res) => {
       description: p.description,
       status: p.status,
       health: p.health,
+      color: p.color,
       start_date: p.start_date,
       target_date: p.target_date,
       created_at: p.created_at,
@@ -96,13 +97,13 @@ router.get('/:id', (req, res) => {
 // POST /api/projects
 router.post('/', (req, res) => {
   try {
-    const { name, description, status, health, start_date, target_date } = req.body;
+    const { name, description, status, health, color, start_date, target_date } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
     const result = db.prepare(`
-      INSERT INTO projects (name, description, status, health, start_date, target_date)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(name, description || '', status || 'upcoming', health || 'green', start_date || null, target_date || null);
+      INSERT INTO projects (name, description, status, health, color, start_date, target_date)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(name, description || '', status || 'upcoming', health || 'green', color || '#3B82F6', start_date || null, target_date || null);
 
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(project);
@@ -120,18 +121,19 @@ router.put('/:id', (req, res) => {
     const existing = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Project not found' });
 
-    const { name, description, status, health, start_date, target_date } = req.body;
+    const { name, description, status, health, color, start_date, target_date } = req.body;
     db.prepare(`
       UPDATE projects SET
         name = COALESCE(?, name),
         description = COALESCE(?, description),
         status = COALESCE(?, status),
         health = COALESCE(?, health),
+        color = COALESCE(?, color),
         start_date = COALESCE(?, start_date),
         target_date = COALESCE(?, target_date),
         updated_at = datetime('now')
       WHERE id = ?
-    `).run(name, description, status, health, start_date, target_date, req.params.id);
+    `).run(name, description, status, health, color, start_date, target_date, req.params.id);
 
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
     res.json(project);

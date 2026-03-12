@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS projects (
   description TEXT DEFAULT '',
   status TEXT DEFAULT 'upcoming' CHECK(status IN ('upcoming','planning','active','wrapping_up','complete')),
   health TEXT DEFAULT 'green' CHECK(health IN ('green','yellow','red')),
+  color TEXT DEFAULT '#3B82F6',
   start_date TEXT,
   target_date TEXT,
   created_at TEXT DEFAULT (datetime('now')),
@@ -17,6 +18,8 @@ CREATE TABLE IF NOT EXISTS features (
   description TEXT DEFAULT '',
   status TEXT DEFAULT 'not_started' CHECK(status IN ('not_started','in_progress','complete')),
   priority TEXT DEFAULT 'medium' CHECK(priority IN ('high','medium','low')),
+  start_date TEXT,
+  target_date TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
