@@ -317,11 +317,14 @@ router.put('/:id', (req, res) => {
     const { name, role, email } = req.body;
     db.prepare(`
       UPDATE team_members SET
-        name = COALESCE(?, name),
-        role = COALESCE(?, role),
-        email = COALESCE(?, email)
+        name = ?, role = ?, email = ?
       WHERE id = ?
-    `).run(name, role, email, req.params.id);
+    `).run(
+      name ?? existing.name,
+      role ?? existing.role,
+      email ?? existing.email,
+      req.params.id
+    );
 
     const member = db.prepare('SELECT * FROM team_members WHERE id = ?').get(req.params.id);
     res.json(member);
