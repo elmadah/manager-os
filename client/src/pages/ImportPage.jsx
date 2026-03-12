@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileText, X, AlertTriangle, Check, Loader2, Filter, DatabaseBackup } from 'lucide-react';
+import { Upload, FileText, X, AlertTriangle, Check, Loader2, Filter, DatabaseBackup, ChevronDown, ChevronRight, Info } from 'lucide-react';
 import api from '../lib/api';
 import { useToast } from '../components/ToastProvider';
 
@@ -48,6 +48,9 @@ export default function ImportPage() {
   // Confirm state
   const [confirming, setConfirming] = useState(false);
   const [importResult, setImportResult] = useState(null);
+
+  // Help section state
+  const [showHelp, setShowHelp] = useState(false);
 
   // Restore state
   const [restoring, setRestoring] = useState(false);
@@ -377,6 +380,109 @@ export default function ImportPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* CSV Format Help */}
+      {!preview && (
+        <div className="mb-6 bg-white rounded-xl border border-gray-200">
+          <button
+            onClick={() => setShowHelp(!showHelp)}
+            className="w-full flex items-center gap-3 p-4 text-left hover:bg-gray-50 rounded-xl transition-colors"
+          >
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <Info className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-gray-900">CSV Format Guide</h3>
+              <p className="text-xs text-gray-500">View expected columns, example file, and tips</p>
+            </div>
+            {showHelp ? (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            )}
+          </button>
+
+          {showHelp && (
+            <div className="px-5 pb-5 border-t border-gray-100 pt-4 space-y-4">
+              {/* Column Reference */}
+              <div>
+                <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Expected Columns</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-1.5 pr-4 text-xs font-medium text-gray-500">Column</th>
+                        <th className="text-left py-1.5 pr-4 text-xs font-medium text-gray-500">Required</th>
+                        <th className="text-left py-1.5 text-xs font-medium text-gray-500">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-xs text-gray-600">
+                      <tr className="border-b border-gray-100">
+                        <td className="py-1.5 pr-4 font-mono font-medium text-gray-800">Issue key</td>
+                        <td className="py-1.5 pr-4"><span className="text-red-600 font-medium">Yes</span></td>
+                        <td className="py-1.5">Unique identifier (e.g. PROJ-1). Rows without this are skipped.</td>
+                      </tr>
+                      <tr className="border-b border-gray-100">
+                        <td className="py-1.5 pr-4 font-mono font-medium text-gray-800">Summary</td>
+                        <td className="py-1.5 pr-4"><span className="text-red-600 font-medium">Yes</span></td>
+                        <td className="py-1.5">Story title or description</td>
+                      </tr>
+                      <tr className="border-b border-gray-100">
+                        <td className="py-1.5 pr-4 font-mono font-medium text-gray-800">Sprint</td>
+                        <td className="py-1.5 pr-4"><span className="text-gray-400">No</span></td>
+                        <td className="py-1.5">Sprint name (e.g. Sprint 1)</td>
+                      </tr>
+                      <tr className="border-b border-gray-100">
+                        <td className="py-1.5 pr-4 font-mono font-medium text-gray-800">Status</td>
+                        <td className="py-1.5 pr-4"><span className="text-gray-400">No</span></td>
+                        <td className="py-1.5">e.g. To Do, In Progress, Done</td>
+                      </tr>
+                      <tr className="border-b border-gray-100">
+                        <td className="py-1.5 pr-4 font-mono font-medium text-gray-800">Assignee</td>
+                        <td className="py-1.5 pr-4"><span className="text-gray-400">No</span></td>
+                        <td className="py-1.5">Team member name (matched case-insensitively)</td>
+                      </tr>
+                      <tr className="border-b border-gray-100">
+                        <td className="py-1.5 pr-4 font-mono font-medium text-gray-800">Story Points</td>
+                        <td className="py-1.5 pr-4"><span className="text-gray-400">No</span></td>
+                        <td className="py-1.5">Integer estimate. Also accepts <span className="font-mono">Story point estimate</span>. Defaults to 0.</td>
+                      </tr>
+                      <tr>
+                        <td className="py-1.5 pr-4 font-mono font-medium text-gray-800">Resolved</td>
+                        <td className="py-1.5 pr-4"><span className="text-gray-400">No</span></td>
+                        <td className="py-1.5">Completion date (e.g. 2026-03-10). Also accepts <span className="font-mono">Release Date</span>.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Example CSV */}
+              <div>
+                <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Example CSV</h4>
+                <pre className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-700 overflow-x-auto font-mono leading-relaxed">
+{`Issue key,Summary,Sprint,Status,Assignee,Story Points,Resolved
+PROJ-1,User login page,Sprint 1,In Progress,John Doe,3,
+PROJ-2,Password reset flow,Sprint 1,Done,Jane Smith,5,2026-03-10
+PROJ-3,Dashboard widgets,Sprint 2,To Do,,8,`}
+                </pre>
+              </div>
+
+              {/* Tips */}
+              <div>
+                <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Tips</h4>
+                <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
+                  <li>Accepts <span className="font-mono">.csv</span> and <span className="font-mono">.json</span> files</li>
+                  <li>Column headers are case-insensitive</li>
+                  <li>Unmatched assignee names will show a warning but won't block the import</li>
+                  <li>You can assign stories to features during the preview step</li>
+                  <li>The system diffs against existing stories to show what's new, updated, carried over, or closed</li>
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
