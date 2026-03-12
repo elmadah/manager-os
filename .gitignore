@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 *.db
+data/
+!data/.gitkeep
+.DS_Store
+.idea/
