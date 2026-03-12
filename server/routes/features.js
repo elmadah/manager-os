@@ -13,14 +13,16 @@ router.get('/projects/:projectId/features', (req, res) => {
         COALESCE(s.total, 0) AS total_stories,
         COALESCE(s.completed, 0) AS completed_stories,
         COALESCE(s.carry_overs, 0) AS carry_overs,
-        COALESCE(s.total_points, 0) AS total_points
+        COALESCE(s.total_points, 0) AS total_points,
+        COALESCE(s.completed_points, 0) AS completed_points
       FROM features f
       LEFT JOIN (
         SELECT feature_id,
           COUNT(*) AS total,
           SUM(CASE WHEN status = 'Done' THEN 1 ELSE 0 END) AS completed,
           SUM(CASE WHEN carry_over_count > 0 THEN 1 ELSE 0 END) AS carry_overs,
-          SUM(story_points) AS total_points
+          SUM(story_points) AS total_points,
+          SUM(CASE WHEN status = 'Done' THEN story_points ELSE 0 END) AS completed_points
         FROM stories
         GROUP BY feature_id
       ) s ON s.feature_id = f.id
@@ -42,6 +44,7 @@ router.get('/projects/:projectId/features', (req, res) => {
         completed: f.completed_stories,
         carry_overs: f.carry_overs,
         points: f.total_points,
+        completed_points: f.completed_points,
       },
     }));
 
@@ -90,6 +93,26 @@ router.get('/features/:id', (req, res) => {
     `).all(req.params.id);
 
     res.json({ ...feature, stories });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/features/:featureId/stories
+router.get('/features/:featureId/stories', (req, res) => {
+  try {
+    const feature = db.prepare('SELECT id FROM features WHERE id = ?').get(req.params.featureId);
+    if (!feature) return res.status(404).json({ error: 'Feature not found' });
+
+    const stories = db.prepare(`
+      SELECT s.*, tm.name AS assignee_name
+      FROM stories s
+      LEFT JOIN team_members tm ON tm.id = s.assignee_id
+      WHERE s.feature_id = ?
+      ORDER BY s.created_at
+    `).all(req.params.featureId);
+
+    res.json(stories);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
