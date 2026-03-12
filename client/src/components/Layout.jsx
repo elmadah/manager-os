@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   StickyNote,
   Upload,
+  Newspaper,
 } from 'lucide-react';
 
 const navItems = [
@@ -20,6 +21,7 @@ const navItems = [
   { to: '/todos', label: 'Todos', icon: CheckSquare },
   { to: '/blockers', label: 'Blockers', icon: AlertTriangle },
   { to: '/notes', label: 'Notes', icon: StickyNote },
+  { to: '/digest', label: 'Digest', icon: Newspaper },
   { to: '/import', label: 'Import', icon: Upload },
 ];
 

@@ -24,6 +24,7 @@ const sprintsRouter = require('./routes/sprints');
 const blockersRouter = require('./routes/blockers');
 const oneOnOnesRouter = require('./routes/oneOnOnes');
 const notesRouter = require('./routes/notes');
+const digestRouter = require('./routes/digest');
 
 app.use('/api/projects', projectsRouter);
 app.use('/api', featuresRouter);
@@ -34,6 +35,7 @@ app.use('/api/sprints', sprintsRouter);
 app.use('/api/blockers', blockersRouter);
 app.use('/api', oneOnOnesRouter);
 app.use('/api/notes', notesRouter);
+app.use('/api/digest', digestRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
