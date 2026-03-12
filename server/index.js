@@ -50,6 +50,12 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Initialize database then start server
+db.init().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}).catch((err) => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });
