@@ -124,16 +124,19 @@ router.put('/:id', (req, res) => {
     const { name, description, status, health, color, start_date, target_date } = req.body;
     db.prepare(`
       UPDATE projects SET
-        name = COALESCE(?, name),
-        description = COALESCE(?, description),
-        status = COALESCE(?, status),
-        health = COALESCE(?, health),
-        color = COALESCE(?, color),
-        start_date = COALESCE(?, start_date),
-        target_date = COALESCE(?, target_date),
-        updated_at = datetime('now')
+        name = ?, description = ?, status = ?, health = ?, color = ?,
+        start_date = ?, target_date = ?, updated_at = datetime('now')
       WHERE id = ?
-    `).run(name, description, status, health, color, start_date, target_date, req.params.id);
+    `).run(
+      name ?? existing.name,
+      description ?? existing.description,
+      status ?? existing.status,
+      health ?? existing.health,
+      color ?? existing.color,
+      start_date ?? existing.start_date,
+      target_date ?? existing.target_date,
+      req.params.id
+    );
 
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
     res.json(project);

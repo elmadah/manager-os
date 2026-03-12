@@ -129,15 +129,18 @@ router.put('/features/:id', (req, res) => {
     const { name, description, status, priority, start_date, target_date } = req.body;
     db.prepare(`
       UPDATE features SET
-        name = COALESCE(?, name),
-        description = COALESCE(?, description),
-        status = COALESCE(?, status),
-        priority = COALESCE(?, priority),
-        start_date = COALESCE(?, start_date),
-        target_date = COALESCE(?, target_date),
-        updated_at = datetime('now')
+        name = ?, description = ?, status = ?, priority = ?,
+        start_date = ?, target_date = ?, updated_at = datetime('now')
       WHERE id = ?
-    `).run(name, description, status, priority, start_date, target_date, req.params.id);
+    `).run(
+      name ?? existing.name,
+      description ?? existing.description,
+      status ?? existing.status,
+      priority ?? existing.priority,
+      start_date ?? existing.start_date,
+      target_date ?? existing.target_date,
+      req.params.id
+    );
 
     const feature = db.prepare('SELECT * FROM features WHERE id = ?').get(req.params.id);
     res.json(feature);
