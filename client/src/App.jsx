@@ -3,7 +3,6 @@ import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
-import PipelinePage from './pages/PipelinePage';
 import TeamPage from './pages/TeamPage';
 import TeamMemberPage from './pages/TeamMemberPage';
 import SprintsPage from './pages/SprintsPage';
@@ -21,7 +20,6 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
-          <Route path="/pipeline" element={<PipelinePage />} />
           <Route path="/team" element={<TeamPage />} />
           <Route path="/team/:id" element={<TeamMemberPage />} />
           <Route path="/sprints" element={<SprintsPage />} />

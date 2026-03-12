@@ -1,7 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
-  FolderKanban,
   Columns3,
   Users,
   RefreshCw,
@@ -18,8 +17,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/projects', label: 'Projects', icon: FolderKanban },
-  { to: '/pipeline', label: 'Pipeline', icon: Columns3 },
+  { to: '/projects', label: 'Projects', icon: Columns3 },
   { to: '/team', label: 'Team', icon: Users },
   { to: '/sprints', label: 'Sprints', icon: RefreshCw },
   { to: '/todos', label: 'Todos', icon: CheckSquare },
