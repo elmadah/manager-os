@@ -619,6 +619,8 @@ function FeatureModal({ projectId, feature, onClose, onSaved }) {
     description: feature?.description || '',
     status: feature?.status || 'not_started',
     priority: feature?.priority || 'medium',
+    start_date: feature?.start_date || '',
+    target_date: feature?.target_date || '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -710,6 +712,29 @@ function FeatureModal({ projectId, feature, onClose, onSaved }) {
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
               </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+              <input
+                type="date"
+                name="start_date"
+                value={form.start_date}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Target Date</label>
+              <input
+                type="date"
+                name="target_date"
+                value={form.target_date}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              />
             </div>
           </div>
 
