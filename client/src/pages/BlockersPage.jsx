@@ -26,6 +26,9 @@ export default function BlockersPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('active');
   const [severityFilter, setSeverityFilter] = useState('all');
+  const [projectFilter, setProjectFilter] = useState('all');
+  const [featureFilter, setFeatureFilter] = useState('all');
+  const [teamMemberFilter, setTeamMemberFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [editingBlocker, setEditingBlocker] = useState(null);
   const [expanded, setExpanded] = useState({});
@@ -40,6 +43,9 @@ export default function BlockersPage() {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (severityFilter !== 'all') params.set('severity', severityFilter);
+      if (projectFilter !== 'all') params.set('project_id', projectFilter);
+      if (featureFilter !== 'all') params.set('feature_id', featureFilter);
+      if (teamMemberFilter !== 'all') params.set('team_member_id', teamMemberFilter);
       const data = await api.get(`/blockers?${params}`);
       setBlockers(data);
     } catch (err) {
@@ -63,10 +69,19 @@ export default function BlockersPage() {
     loadLookups();
   }, []);
 
+  // Load features when project filter changes
+  useEffect(() => {
+    if (projectFilter === 'all') return;
+    if (features[projectFilter]) return;
+    api.get(`/projects/${projectFilter}/features`).then((data) => {
+      setFeatures((prev) => ({ ...prev, [projectFilter]: data }));
+    }).catch(() => {});
+  }, [projectFilter]);
+
   useEffect(() => {
     setLoading(true);
     loadBlockers();
-  }, [statusFilter, severityFilter]);
+  }, [statusFilter, severityFilter, projectFilter, featureFilter, teamMemberFilter]);
 
   async function handleResolve(blocker) {
     try {
@@ -165,6 +180,41 @@ export default function BlockersPage() {
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low</option>
+        </select>
+
+        <select
+          value={projectFilter}
+          onChange={(e) => { setProjectFilter(e.target.value); setFeatureFilter('all'); }}
+          className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">All Projects</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+
+        {projectFilter !== 'all' && (
+          <select
+            value={featureFilter}
+            onChange={(e) => setFeatureFilter(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Features</option>
+            {(features[projectFilter] || []).map((f) => (
+              <option key={f.id} value={f.id}>{f.name}</option>
+            ))}
+          </select>
+        )}
+
+        <select
+          value={teamMemberFilter}
+          onChange={(e) => setTeamMemberFilter(e.target.value)}
+          className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">All Team Members</option>
+          {teamMembers.map((tm) => (
+            <option key={tm.id} value={tm.id}>{tm.name}</option>
+          ))}
         </select>
       </div>
 

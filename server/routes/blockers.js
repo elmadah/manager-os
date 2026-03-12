@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/init');
 
-// GET /api/blockers
+// GET /api/blockers — with project, feature, team_member filters
 router.get('/', (req, res) => {
   try {
-    const { status, severity, project_id } = req.query;
+    const { status, severity, project_id, feature_id, team_member_id } = req.query;
 
     let sql = `
       SELECT b.*,
@@ -33,6 +33,16 @@ router.get('/', (req, res) => {
     if (project_id) {
       sql += ' AND b.project_id = ?';
       params.push(project_id);
+    }
+
+    if (feature_id) {
+      sql += ' AND b.feature_id = ?';
+      params.push(feature_id);
+    }
+
+    if (team_member_id) {
+      sql += ' AND b.team_member_id = ?';
+      params.push(team_member_id);
     }
 
     sql += ' ORDER BY b.created_at DESC';
