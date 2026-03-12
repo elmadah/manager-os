@@ -7,6 +7,7 @@ import {
   RefreshCw,
   CheckSquare,
   AlertTriangle,
+  StickyNote,
   Upload,
 } from 'lucide-react';
 
@@ -18,6 +19,7 @@ const navItems = [
   { to: '/sprints', label: 'Sprints', icon: RefreshCw },
   { to: '/todos', label: 'Todos', icon: CheckSquare },
   { to: '/blockers', label: 'Blockers', icon: AlertTriangle },
+  { to: '/notes', label: 'Notes', icon: StickyNote },
   { to: '/import', label: 'Import', icon: Upload },
 ];
 

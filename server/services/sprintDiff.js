@@ -18,7 +18,7 @@ function computeDiff(rows) {
   // Fetch all existing stories matching the keys
   const placeholders = keys.map(() => '?').join(',');
   const existing = db.prepare(
-    `SELECT s.key, s.summary, s.sprint, s.status, s.assignee_id, s.story_points, s.release_date
+    `SELECT s.key, s.summary, s.sprint, s.status, s.assignee_id, s.story_points, s.release_date, s.feature_id
      FROM stories s WHERE s.key IN (${placeholders})`
   ).all(...keys);
 
@@ -34,18 +34,21 @@ function computeDiff(rows) {
       return { ...row, diff_status: 'new' };
     }
 
+    // Carry forward the existing feature_id
+    const feature_id = ex.feature_id || null;
+
     // Check if status changed to done
     const nowDone = isDone(row.status);
     const wasDone = isDone(ex.status);
 
     if (nowDone && !wasDone) {
-      return { ...row, diff_status: 'closed' };
+      return { ...row, feature_id, diff_status: 'closed' };
     }
 
     // Check if sprint changed and status is not done → carry_over
     const sprintChanged = row.sprint !== ex.sprint;
     if (sprintChanged && !nowDone) {
-      return { ...row, diff_status: 'carry_over' };
+      return { ...row, feature_id, diff_status: 'carry_over' };
     }
 
     // Check if any field changed
@@ -57,10 +60,10 @@ function computeDiff(rows) {
       (row.story_points || 0) !== (ex.story_points || 0);
 
     if (changed) {
-      return { ...row, diff_status: 'updated' };
+      return { ...row, feature_id, diff_status: 'updated' };
     }
 
-    return { ...row, diff_status: 'unchanged' };
+    return { ...row, feature_id, diff_status: 'unchanged' };
   });
 }
 

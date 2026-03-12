@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Pencil, Trash2, X, RefreshCw, Lock, Zap, CheckCircle, Clock, AlertTriangle, TrendingUp, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Pencil, Trash2, X, RefreshCw, Lock, Zap, CheckCircle, Clock, AlertTriangle, TrendingUp, ChevronUp, ChevronDown, Plus, ChevronRight, MessageSquare } from 'lucide-react';
 import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import ReactMarkdown from 'react-markdown';
 import api from '../lib/api';
+import NotesPanel from '../components/NotesPanel';
 
 const STORY_STATUS_STYLES = {
   'To Do': 'bg-gray-100 text-gray-700',
@@ -200,9 +202,9 @@ export default function TeamMemberPage() {
         />
       )}
 
-      {activeTab === 'notes' && <PlaceholderTab label="1:1 Notes" />}
+      {activeTab === 'notes' && <OneOnOneTab memberId={id} />}
       {activeTab === 'performance' && <PlaceholderTab label="Performance" />}
-      {activeTab === 'general_notes' && <PlaceholderTab label="Notes" />}
+      {activeTab === 'general_notes' && <NotesPanel teamMemberId={id} />}
 
       {/* Edit Modal */}
       {showEdit && (
@@ -489,6 +491,416 @@ function VelocityChart({ velocity }) {
           />
         </ComposedChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+const SENTIMENT_CONFIG = {
+  engaged: { label: 'Engaged', color: 'bg-green-100 text-green-700', dot: 'bg-green-500' },
+  neutral: { label: 'Neutral', color: 'bg-gray-100 text-gray-700', dot: 'bg-gray-400' },
+  frustrated: { label: 'Frustrated', color: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500' },
+  needs_support: { label: 'Needs Support', color: 'bg-red-100 text-red-700', dot: 'bg-red-500' },
+};
+
+function SentimentTimeline({ oneOnOnes }) {
+  const recent = oneOnOnes.slice(0, 15).reverse();
+  if (recent.length < 2) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Sentiment Timeline</h4>
+      <div className="flex items-end gap-1">
+        {recent.map((o, i) => {
+          const cfg = SENTIMENT_CONFIG[o.sentiment] || SENTIMENT_CONFIG.neutral;
+          const dateStr = new Date(o.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          return (
+            <div key={o.id} className="flex flex-col items-center flex-1 min-w-0 group relative">
+              <div className={`w-3 h-3 rounded-full ${cfg.dot} cursor-pointer`} />
+              {i < recent.length - 1 && (
+                <div className="h-px bg-gray-200 w-full mt-1.5" />
+              )}
+              <span className="text-[10px] text-gray-400 mt-1 truncate w-full text-center">{dateStr}</span>
+              <div className="absolute bottom-full mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                {dateStr}: {cfg.label}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-4 mt-3 pt-2 border-t border-gray-100">
+        {Object.entries(SENTIMENT_CONFIG).map(([key, cfg]) => (
+          <span key={key} className="flex items-center gap-1.5 text-[10px] text-gray-500">
+            <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+            {cfg.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OneOnOneTab({ memberId }) {
+  const [oneOnOnes, setOneOnOnes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState({});
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  async function loadOneOnOnes() {
+    try {
+      const data = await api.get(`/team/${memberId}/one-on-ones`);
+      setOneOnOnes(data);
+    } catch (err) {
+      console.error('Failed to load 1:1s:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadOneOnOnes();
+  }, [memberId]);
+
+  function toggleExpand(id) {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  async function handleDelete(id) {
+    try {
+      await api.del(`/one-on-ones/${id}`);
+      setDeleteConfirm(null);
+      loadOneOnOnes();
+    } catch (err) {
+      console.error('Failed to delete 1:1:', err);
+    }
+  }
+
+  function handleEdit(entry) {
+    setEditing(entry);
+    setShowModal(true);
+  }
+
+  function handleNew() {
+    setEditing(null);
+    setShowModal(true);
+  }
+
+  if (loading) {
+    return <div className="text-center py-16 text-gray-400">Loading 1:1 notes...</div>;
+  }
+
+  return (
+    <div>
+      {/* Header with New button */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900">1:1 Notes</h3>
+        <button
+          onClick={handleNew}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+        >
+          <Plus size={16} />
+          New 1:1
+        </button>
+      </div>
+
+      {/* Sentiment Timeline */}
+      <SentimentTimeline oneOnOnes={oneOnOnes} />
+
+      {/* 1:1 List */}
+      {oneOnOnes.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+          <MessageSquare size={40} className="mx-auto text-gray-300 mb-3" />
+          <h3 className="text-lg font-semibold text-gray-700 mb-1">No 1:1 notes yet</h3>
+          <p className="text-gray-400">Click "New 1:1" to record your first session.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {oneOnOnes.map((entry) => {
+            const isExpanded = expanded[entry.id];
+            const cfg = SENTIMENT_CONFIG[entry.sentiment] || SENTIMENT_CONFIG.neutral;
+            const dateStr = new Date(entry.date + 'T00:00:00').toLocaleDateString('en-US', {
+              weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+            });
+            const preview = entry.talking_points
+              ? entry.talking_points.slice(0, 100) + (entry.talking_points.length > 100 ? '...' : '')
+              : 'No talking points recorded';
+
+            return (
+              <div key={entry.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                {/* Card Header */}
+                <button
+                  onClick={() => toggleExpand(entry.id)}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                >
+                  <ChevronRight
+                    size={16}
+                    className={`text-gray-400 transition-transform shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900">{dateStr}</span>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cfg.color}`}>
+                        {cfg.label}
+                      </span>
+                    </div>
+                    {!isExpanded && (
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{preview}</p>
+                    )}
+                  </div>
+                </button>
+
+                {/* Expanded Content */}
+                {isExpanded && (
+                  <div className="px-4 pb-4 border-t border-gray-100">
+                    {entry.talking_points && (
+                      <div className="mt-3">
+                        <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Talking Points</h5>
+                        <div className="prose prose-sm max-w-none text-gray-700">
+                          <ReactMarkdown>{entry.talking_points}</ReactMarkdown>
+                        </div>
+                      </div>
+                    )}
+
+                    {entry.action_items && (
+                      <div className="mt-3">
+                        <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Action Items</h5>
+                        <div className="prose prose-sm max-w-none text-gray-700">
+                          <ReactMarkdown>{entry.action_items}</ReactMarkdown>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+                      <button
+                        onClick={() => handleEdit(entry)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                      >
+                        <Pencil size={12} />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(entry.id)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100"
+                      >
+                        <Trash2 size={12} />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* New/Edit Modal */}
+      {showModal && (
+        <OneOnOneModal
+          memberId={memberId}
+          entry={editing}
+          latestEntry={!editing ? oneOnOnes[0] : null}
+          onClose={() => {
+            setShowModal(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setShowModal(false);
+            setEditing(null);
+            loadOneOnOnes();
+          }}
+        />
+      )}
+
+      {/* Delete Confirmation */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDeleteConfirm(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Delete 1:1 Note</h3>
+            <p className="text-sm text-gray-600 mb-6">Are you sure? This action cannot be undone.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm)}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getUncheckedItems(actionItems) {
+  if (!actionItems) return '';
+  const lines = actionItems.split('\n');
+  const unchecked = lines.filter((line) => /^\s*-\s*\[\s*\]/.test(line));
+  return unchecked.join('\n');
+}
+
+function OneOnOneModal({ memberId, entry, latestEntry, onClose, onSaved }) {
+  const isEdit = !!entry;
+  const today = new Date().toISOString().split('T')[0];
+
+  // Build carry-forward text for new entries
+  let carryForward = '';
+  if (!isEdit && latestEntry) {
+    const unchecked = getUncheckedItems(latestEntry.action_items);
+    if (unchecked) {
+      const prevDate = new Date(latestEntry.date + 'T00:00:00').toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+      });
+      carryForward = `Carried from ${prevDate}:\n${unchecked}`;
+    }
+  }
+
+  const [form, setForm] = useState({
+    date: entry?.date || today,
+    talking_points: entry?.talking_points || '',
+    action_items: entry?.action_items || carryForward,
+    sentiment: entry?.sentiment || 'neutral',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  function handleChange(e) {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      if (isEdit) {
+        await api.put(`/one-on-ones/${entry.id}`, form);
+      } else {
+        await api.post(`/team/${memberId}/one-on-ones`, form);
+      }
+      onSaved();
+    } catch (err) {
+      setError(err.data?.error || 'Failed to save 1:1');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const sentimentOptions = [
+    { value: 'engaged', label: 'Engaged', color: 'text-green-700 bg-green-50 border-green-300' },
+    { value: 'neutral', label: 'Neutral', color: 'text-gray-700 bg-gray-50 border-gray-300' },
+    { value: 'frustrated', label: 'Frustrated', color: 'text-orange-700 bg-orange-50 border-orange-300' },
+    { value: 'needs_support', label: 'Needs Support', color: 'text-red-700 bg-red-50 border-red-300' },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-gray-900">{isEdit ? 'Edit 1:1' : 'New 1:1'}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={20} />
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Date */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+            <input
+              type="date"
+              name="date"
+              value={form.date}
+              onChange={handleChange}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
+          </div>
+
+          {/* Talking Points */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Talking Points</label>
+            <textarea
+              name="talking_points"
+              value={form.talking_points}
+              onChange={handleChange}
+              rows={6}
+              placeholder="What did you discuss? Markdown supported..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono text-sm"
+            />
+          </div>
+
+          {/* Action Items */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Action Items</label>
+            <p className="text-xs text-gray-400 mb-1">Use "- [ ] item" for checkboxes, "- [x] item" for completed</p>
+            <textarea
+              name="action_items"
+              value={form.action_items}
+              onChange={handleChange}
+              rows={4}
+              placeholder={"- [ ] Follow up on project timeline\n- [ ] Share design doc with team"}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono text-sm"
+            />
+          </div>
+
+          {/* Sentiment */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Sentiment</label>
+            <div className="flex flex-wrap gap-2">
+              {sentimentOptions.map((opt) => (
+                <label
+                  key={opt.value}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm font-medium ${
+                    form.sentiment === opt.value
+                      ? opt.color + ' ring-2 ring-offset-1 ring-blue-400'
+                      : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="sentiment"
+                    value={opt.value}
+                    checked={form.sentiment === opt.value}
+                    onChange={handleChange}
+                    className="sr-only"
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {submitting ? 'Saving...' : isEdit ? 'Save Changes' : 'Create 1:1'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

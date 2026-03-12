@@ -135,7 +135,7 @@ router.post('/', upload.single('file'), async (req, res) => {
 // POST /api/import/confirm — Apply the import
 router.post('/confirm', (req, res) => {
   try {
-    const { import_id } = req.body;
+    const { import_id, feature_assignments } = req.body;
     if (!import_id) {
       return res.status(400).json({ error: 'import_id is required' });
     }
@@ -145,13 +145,16 @@ router.post('/confirm', (req, res) => {
       return res.status(404).json({ error: 'Preview not found or expired' });
     }
 
+    // feature_assignments is { story_key: feature_id }
+    const featureMap = feature_assignments || {};
+
     const rows = entry.rows;
     let imported = 0;
     const summary = { new: 0, updated: 0, carry_over: 0, closed: 0, unchanged: 0 };
 
     const insertStory = db.prepare(`
-      INSERT INTO stories (key, summary, sprint, status, assignee_id, story_points, release_date, first_seen_sprint, carry_over_count)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+      INSERT INTO stories (key, summary, sprint, status, assignee_id, story_points, release_date, first_seen_sprint, carry_over_count, feature_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
     `);
 
     const updateStory = db.prepare(`
@@ -176,6 +179,8 @@ router.post('/confirm', (req, res) => {
 
     const getStory = db.prepare('SELECT id FROM stories WHERE key = ?');
 
+    const updateFeature = db.prepare('UPDATE stories SET feature_id = ?, updated_at = datetime(\'now\') WHERE key = ?');
+
     const getSprintCount = db.prepare(
       'SELECT COUNT(DISTINCT sprint) as cnt FROM story_sprint_history WHERE story_id = ?'
     );
@@ -184,23 +189,32 @@ router.post('/confirm', (req, res) => {
       for (const row of rows) {
         summary[row.diff_status]++;
 
-        if (row.diff_status === 'unchanged') continue;
+        if (row.diff_status === 'unchanged') {
+          // Still apply feature assignment if provided
+          const unchangedFeatureId = featureMap[row.key] || null;
+          if (unchangedFeatureId) updateFeature.run(unchangedFeatureId, row.key);
+          continue;
+        }
+
+        const featureId = featureMap[row.key] || null;
 
         if (row.diff_status === 'new') {
           const result = insertStory.run(
             row.key, row.summary, row.sprint, row.status,
-            row.assignee_id, row.story_points, row.release_date, row.sprint
+            row.assignee_id, row.story_points, row.release_date, row.sprint, featureId
           );
           insertHistory.run(result.lastInsertRowid, row.sprint, row.status, row.assignee_id);
           imported++;
         } else if (row.diff_status === 'updated') {
           updateStory.run(row.summary, row.sprint, row.status, row.assignee_id, row.story_points, row.key);
+          if (featureId) updateFeature.run(featureId, row.key);
           const story = getStory.get(row.key);
           insertHistory.run(story.id, row.sprint, row.status, row.assignee_id);
           imported++;
         } else if (row.diff_status === 'carry_over') {
           incrementCarryOver.run(row.sprint, row.key);
           updateStory.run(row.summary, row.sprint, row.status, row.assignee_id, row.story_points, row.key);
+          if (featureId) updateFeature.run(featureId, row.key);
           const story = getStory.get(row.key);
           insertHistory.run(story.id, row.sprint, row.status, row.assignee_id);
           imported++;
@@ -211,6 +225,7 @@ router.post('/confirm', (req, res) => {
           const releaseDate = row.release_date || new Date().toISOString().split('T')[0];
           closeStory.run(row.status, releaseDate, sprintsToComplete, row.key);
           updateStory.run(row.summary, row.sprint, row.status, row.assignee_id, row.story_points, row.key);
+          if (featureId) updateFeature.run(featureId, row.key);
           insertHistory.run(story.id, row.sprint, row.status, row.assignee_id);
           imported++;
         }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderKanban, Users, AlertTriangle, Zap } from 'lucide-react';
+import { Plus, FolderKanban, Users, AlertTriangle, Zap, ShieldAlert } from 'lucide-react';
 import api from '../lib/api';
 import CreateProjectModal from '../components/CreateProjectModal';
 
@@ -29,40 +29,38 @@ const HEALTH_COLORS = {
 export default function HomePage() {
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
-  const [stats, setStats] = useState({ totalProjects: 0, activeProjects: 0, teamMembers: 0, overdueTodos: 0 });
+  const [stats, setStats] = useState({ totalProjects: 0, activeProjects: 0, teamMembers: 0, overdueTodos: 0, activeBlockers: 0 });
   const [blockerCounts, setBlockerCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   async function loadData() {
     try {
-      const [projectsData, teamData, overdueTodos] = await Promise.all([
+      const [projectsData, teamData, overdueTodos, activeBlockers] = await Promise.all([
         api.get('/projects'),
         api.get('/team'),
         api.get('/todos?overdue=true'),
+        api.get('/blockers?status=active').catch(() => []),
       ]);
 
       setProjects(projectsData);
+
+      // Count blockers per project (only critical + high)
+      const counts = {};
+      for (const b of activeBlockers) {
+        if (b.project_id && (b.severity === 'critical' || b.severity === 'high')) {
+          counts[b.project_id] = (counts[b.project_id] || 0) + 1;
+        }
+      }
+      setBlockerCounts(counts);
+
       setStats({
         totalProjects: projectsData.length,
         activeProjects: projectsData.filter((p) => p.status === 'active').length,
         teamMembers: teamData.length,
         overdueTodos: overdueTodos.length,
+        activeBlockers: activeBlockers.length,
       });
-
-      // Fetch blocker counts per project
-      const counts = {};
-      for (const p of projectsData) {
-        try {
-          const blockers = await api.get(`/projects/${p.id}/blockers?status=active`);
-          if (Array.isArray(blockers) && blockers.length > 0) {
-            counts[p.id] = blockers.length;
-          }
-        } catch {
-          // endpoint may not exist yet — ignore
-        }
-      }
-      setBlockerCounts(counts);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
@@ -97,11 +95,12 @@ export default function HomePage() {
       </div>
 
       {/* Stats Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         <StatCard icon={<FolderKanban size={20} />} label="Total Projects" value={stats.totalProjects} color="blue" />
         <StatCard icon={<Zap size={20} />} label="Active Projects" value={stats.activeProjects} color="green" />
         <StatCard icon={<Users size={20} />} label="Team Members" value={stats.teamMembers} color="purple" />
         <StatCard icon={<AlertTriangle size={20} />} label="Overdue Todos" value={stats.overdueTodos} color="red" />
+        <StatCard icon={<ShieldAlert size={20} />} label="Active Blockers" value={stats.activeBlockers} color="orange" />
       </div>
 
       {/* Project Grid */}
@@ -146,6 +145,7 @@ function StatCard({ icon, label, value, color }) {
     green: 'bg-green-50 text-green-600',
     purple: 'bg-purple-50 text-purple-600',
     red: 'bg-red-50 text-red-600',
+    orange: 'bg-orange-50 text-orange-600',
   };
 
   return (

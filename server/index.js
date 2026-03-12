@@ -20,12 +20,20 @@ const featuresRouter = require('./routes/features');
 const teamRouter = require('./routes/team');
 const todosRouter = require('./routes/todos');
 const importRouter = require('./routes/import');
+const sprintsRouter = require('./routes/sprints');
+const blockersRouter = require('./routes/blockers');
+const oneOnOnesRouter = require('./routes/oneOnOnes');
+const notesRouter = require('./routes/notes');
 
 app.use('/api/projects', projectsRouter);
 app.use('/api', featuresRouter);
 app.use('/api/team', teamRouter);
 app.use('/api/todos', todosRouter);
 app.use('/api/import', importRouter);
+app.use('/api/sprints', sprintsRouter);
+app.use('/api/blockers', blockersRouter);
+app.use('/api', oneOnOnesRouter);
+app.use('/api/notes', notesRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

@@ -10,6 +10,7 @@ import SprintsPage from './pages/SprintsPage';
 import TodosPage from './pages/TodosPage';
 import BlockersPage from './pages/BlockersPage';
 import ImportPage from './pages/ImportPage';
+import NotesPage from './pages/NotesPage';
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/sprints" element={<SprintsPage />} />
           <Route path="/todos" element={<TodosPage />} />
           <Route path="/blockers" element={<BlockersPage />} />
+          <Route path="/notes" element={<NotesPage />} />
           <Route path="/import" element={<ImportPage />} />
         </Route>
       </Routes>

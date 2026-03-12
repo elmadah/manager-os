@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../lib/api';
 import CreateProjectModal from '../components/CreateProjectModal';
+import NotesPanel from '../components/NotesPanel';
 
 const STATUS_STYLES = {
   upcoming: 'bg-gray-100 text-gray-700',
@@ -375,6 +376,12 @@ export default function ProjectDetailPage() {
           </table>
         </div>
       )}
+
+      {/* Notes Section */}
+      <div className="mt-8">
+        <h2 className="text-lg font-bold text-gray-900 mb-4">Notes</h2>
+        <NotesPanel projectId={id} showSearch={false} />
+      </div>
 
       {/* Edit Project Modal */}
       <CreateProjectModal
