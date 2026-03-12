@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Pencil, Trash2, X, RefreshCw, Lock, Zap, CheckCircle, Clock, AlertTriangle, TrendingUp, ChevronUp, ChevronDown, Plus, ChevronRight, MessageSquare } from 'lucide-react';
-import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { ArrowLeft, Pencil, Trash2, X, RefreshCw, Zap, CheckCircle, Clock, AlertTriangle, TrendingUp, ChevronUp, ChevronDown, Plus, ChevronRight, MessageSquare, Calendar, Copy, Save, FileText, Shield } from 'lucide-react';
+import { ComposedChart, LineChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import api from '../lib/api';
 import NotesPanel from '../components/NotesPanel';
@@ -203,7 +203,7 @@ export default function TeamMemberPage() {
       )}
 
       {activeTab === 'notes' && <OneOnOneTab memberId={id} />}
-      {activeTab === 'performance' && <PlaceholderTab label="Performance" />}
+      {activeTab === 'performance' && <PerformanceTab memberId={id} memberName={member.name} />}
       {activeTab === 'general_notes' && <NotesPanel teamMemberId={id} />}
 
       {/* Edit Modal */}
@@ -905,12 +905,422 @@ function OneOnOneModal({ memberId, entry, latestEntry, onClose, onSaved }) {
   );
 }
 
-function PlaceholderTab({ label }) {
+const DATE_PRESETS = [
+  { label: 'Last Quarter', months: 3 },
+  { label: 'Last 6 Months', months: 6 },
+  { label: 'Last Year', months: 12 },
+];
+
+function getDateRange(months) {
+  const to = new Date();
+  const from = new Date();
+  from.setMonth(from.getMonth() - months);
+  return {
+    from: from.toISOString().split('T')[0],
+    to: to.toISOString().split('T')[0],
+  };
+}
+
+function CollapsibleSection({ title, icon, count, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-      <Lock size={40} className="mx-auto text-gray-300 mb-3" />
-      <h3 className="text-lg font-semibold text-gray-700 mb-1">{label}</h3>
-      <p className="text-gray-400">Coming in Phase 3</p>
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 transition-colors"
+      >
+        <ChevronRight size={16} className={`text-gray-400 transition-transform shrink-0 ${open ? 'rotate-90' : ''}`} />
+        <span className="flex items-center gap-2 flex-1">
+          {icon}
+          <span className="text-sm font-semibold text-gray-900">{title}</span>
+          {count !== undefined && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{count}</span>
+          )}
+        </span>
+      </button>
+      {open && <div className="px-5 pb-5 border-t border-gray-100">{children}</div>}
+    </div>
+  );
+}
+
+function PerformanceTab({ memberId, memberName }) {
+  const defaultRange = getDateRange(6);
+  const [from, setFrom] = useState(defaultRange.from);
+  const [to, setTo] = useState(defaultRange.to);
+  const [activePreset, setActivePreset] = useState('Last 6 Months');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [reviewText, setReviewText] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function loadPerformanceData() {
+    setLoading(true);
+    try {
+      const result = await api.get(`/team/${memberId}/performance-review?from=${from}&to=${to}`);
+      setData(result);
+    } catch (err) {
+      console.error('Failed to load performance data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadPerformanceData();
+  }, [memberId, from, to]);
+
+  function applyPreset(preset) {
+    const range = getDateRange(preset.months);
+    setFrom(range.from);
+    setTo(range.to);
+    setActivePreset(preset.label);
+  }
+
+  function handleDateChange(field, value) {
+    setActivePreset(null);
+    if (field === 'from') setFrom(value);
+    else setTo(value);
+  }
+
+  async function handleSaveReview() {
+    if (!reviewText.trim()) return;
+    setSaving(true);
+    try {
+      await api.post('/notes', {
+        content: reviewText,
+        category: 'performance',
+        team_member_id: parseInt(memberId),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      console.error('Failed to save review:', err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleCopy() {
+    navigator.clipboard.writeText(reviewText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  if (loading) {
+    return <div className="text-center py-16 text-gray-400">Loading performance data...</div>;
+  }
+
+  if (!data) {
+    return <div className="text-center py-16 text-gray-400">Failed to load performance data.</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Date Range Selector */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Calendar size={16} className="text-gray-400" />
+            <span className="text-sm font-medium text-gray-700">Period:</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {DATE_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                onClick={() => applyPreset(preset)}
+                className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                  activePreset === preset.label
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => handleDateChange('from', e.target.value)}
+              className="text-sm px-2 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
+            <span className="text-gray-400 text-sm">to</span>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => handleDateChange('to', e.target.value)}
+              className="text-sm px-2 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <StatCard
+          icon={<CheckCircle size={18} />}
+          label="Stories completed"
+          value={data.stories_completed.length}
+          color="green"
+        />
+        <StatCard
+          icon={<TrendingUp size={18} />}
+          label="Story points delivered"
+          value={data.total_points}
+          color="blue"
+        />
+        <StatCard
+          icon={<Clock size={18} />}
+          label="Avg completion (sprints)"
+          value={data.avg_sprints_to_complete}
+          color="teal"
+        />
+        <StatCard
+          icon={<AlertTriangle size={18} />}
+          label="Carry-over rate"
+          value={`${data.carry_over_rate}%`}
+          color="orange"
+          highlight={data.carry_over_rate > 30}
+        />
+        <StatCard
+          icon={<MessageSquare size={18} />}
+          label="1:1s conducted"
+          value={data.one_on_ones.length}
+          color="purple"
+        />
+      </div>
+
+      {/* Velocity Chart */}
+      {data.velocity_by_sprint.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Velocity Over Period</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={data.velocity_by_sprint}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="sprint" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="points_completed"
+                name="Points Completed"
+                stroke="#3b82f6"
+                strokeWidth={2}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Sentiment Timeline */}
+      {data.one_on_ones.length >= 2 && (
+        <SentimentTimeline oneOnOnes={data.one_on_ones} />
+      )}
+
+      {/* Sentiment Summary */}
+      {data.one_on_ones.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Sentiment Breakdown</h4>
+          <div className="flex items-center gap-6">
+            {Object.entries(SENTIMENT_CONFIG).map(([key, cfg]) => (
+              <div key={key} className="flex items-center gap-2">
+                <span className={`w-3 h-3 rounded-full ${cfg.dot}`} />
+                <span className="text-sm text-gray-700">{cfg.label}</span>
+                <span className="text-sm font-bold text-gray-900">{data.sentiment_summary[key] || 0}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Collapsible Sections */}
+      <CollapsibleSection
+        title="Completed Stories"
+        icon={<CheckCircle size={16} className="text-green-500" />}
+        count={data.stories_completed.length}
+        defaultOpen={true}
+      >
+        {data.stories_completed.length === 0 ? (
+          <p className="text-sm text-gray-400 py-4">No stories completed in this period.</p>
+        ) : (
+          <div className="overflow-x-auto mt-3">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-2">Key</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-2">Summary</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-2">Project</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-2">Points</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-2">Sprints</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.stories_completed.map((story) => (
+                  <tr key={story.id} className="border-b border-gray-100 last:border-0">
+                    <td className="px-3 py-2 text-xs font-mono text-gray-600">{story.key}</td>
+                    <td className="px-3 py-2 text-sm text-gray-900 max-w-xs truncate">{story.summary}</td>
+                    <td className="px-3 py-2 text-xs text-gray-600">{story.project_name || '—'}</td>
+                    <td className="px-3 py-2 text-xs text-gray-600">{story.story_points ?? '—'}</td>
+                    <td className="px-3 py-2 text-xs text-gray-600">{story.sprints_to_complete || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="1:1 History"
+        icon={<MessageSquare size={16} className="text-purple-500" />}
+        count={data.one_on_ones.length}
+      >
+        {data.one_on_ones.length === 0 ? (
+          <p className="text-sm text-gray-400 py-4">No 1:1 records in this period.</p>
+        ) : (
+          <div className="space-y-3 mt-3">
+            {data.one_on_ones.map((entry) => {
+              const cfg = SENTIMENT_CONFIG[entry.sentiment] || SENTIMENT_CONFIG.neutral;
+              const dateStr = new Date(entry.date + 'T00:00:00').toLocaleDateString('en-US', {
+                weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+              });
+              return (
+                <div key={entry.id} className="border border-gray-100 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-medium text-gray-900">{dateStr}</span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cfg.color}`}>{cfg.label}</span>
+                  </div>
+                  {entry.talking_points && (
+                    <div className="prose prose-sm max-w-none text-gray-700">
+                      <ReactMarkdown>{entry.talking_points}</ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Notes"
+        icon={<FileText size={16} className="text-blue-500" />}
+        count={data.notes.length}
+      >
+        {data.notes.length === 0 ? (
+          <p className="text-sm text-gray-400 py-4">No performance or 1:1 notes in this period.</p>
+        ) : (
+          <div className="space-y-3 mt-3">
+            {data.notes.map((note) => (
+              <div key={note.id} className="border border-gray-100 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    note.category === 'performance' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {note.category}
+                  </span>
+                  {note.project_name && (
+                    <span className="text-xs text-gray-500">{note.project_name}</span>
+                  )}
+                  <span className="text-xs text-gray-400 ml-auto">
+                    {new Date(note.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="prose prose-sm max-w-none text-gray-700">
+                  <ReactMarkdown>{note.content}</ReactMarkdown>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Blockers"
+        icon={<Shield size={16} className="text-red-500" />}
+        count={data.blockers_involved.length}
+      >
+        {data.blockers_involved.length === 0 ? (
+          <p className="text-sm text-gray-400 py-4">No blockers involving this person in this period.</p>
+        ) : (
+          <div className="space-y-3 mt-3">
+            {data.blockers_involved.map((blocker) => (
+              <div key={blocker.id} className="border border-gray-100 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    blocker.status === 'resolved' ? 'bg-green-100 text-green-700'
+                      : blocker.status === 'monitoring' ? 'bg-yellow-100 text-yellow-700'
+                      : 'bg-red-100 text-red-700'
+                  }`}>
+                    {blocker.status}
+                  </span>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    blocker.severity === 'critical' ? 'bg-red-50 text-red-600'
+                      : blocker.severity === 'high' ? 'bg-orange-50 text-orange-600'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {blocker.severity}
+                  </span>
+                  {blocker.project_name && (
+                    <span className="text-xs text-gray-500">{blocker.project_name}</span>
+                  )}
+                </div>
+                <p className="text-sm font-medium text-gray-900">{blocker.title}</p>
+                {blocker.description && (
+                  <p className="text-sm text-gray-600 mt-1">{blocker.description}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CollapsibleSection>
+
+      {/* Write Review Section */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-1">Write Review</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Use the data above to write a performance review for {memberName}. Saved as a performance note.
+        </p>
+        <textarea
+          value={reviewText}
+          onChange={(e) => setReviewText(e.target.value)}
+          rows={12}
+          placeholder={`# Performance Review — ${memberName}\n\n## Summary\n\n## Strengths\n\n## Areas for Growth\n\n## Goals for Next Period`}
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono text-sm mb-4"
+        />
+        {reviewText.trim() && (
+          <div className="mb-4 border border-gray-200 rounded-lg p-4">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Preview</h4>
+            <div className="prose prose-sm max-w-none text-gray-700">
+              <ReactMarkdown>{reviewText}</ReactMarkdown>
+            </div>
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSaveReview}
+            disabled={saving || !reviewText.trim()}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            <Save size={14} />
+            {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Review'}
+          </button>
+          <button
+            onClick={handleCopy}
+            disabled={!reviewText.trim()}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+          >
+            <Copy size={14} />
+            {copied ? 'Copied!' : 'Copy to Clipboard'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

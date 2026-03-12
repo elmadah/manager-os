@@ -170,6 +170,127 @@ router.get('/:id/velocity', (req, res) => {
   }
 });
 
+// GET /api/team/:id/performance-review?from=...&to=...
+router.get('/:id/performance-review', (req, res) => {
+  try {
+    const member = db.prepare('SELECT * FROM team_members WHERE id = ?').get(req.params.id);
+    if (!member) return res.status(404).json({ error: 'Team member not found' });
+
+    const { from, to } = req.query;
+    if (!from || !to) return res.status(400).json({ error: 'from and to query params are required' });
+
+    // Stories completed in the period (Done, updated within range)
+    const stories_completed = db.prepare(`
+      SELECT s.*,
+        f.name AS feature_name,
+        p.name AS project_name,
+        p.id AS project_id
+      FROM stories s
+      LEFT JOIN features f ON f.id = s.feature_id
+      LEFT JOIN projects p ON p.id = f.project_id
+      WHERE s.assignee_id = ? AND s.status = 'Done'
+        AND s.updated_at >= ? AND s.updated_at <= ?
+      ORDER BY s.updated_at DESC
+    `).all(req.params.id, from, to + 'T23:59:59');
+
+    const total_points = stories_completed.reduce((sum, s) => sum + (s.story_points || 0), 0);
+
+    // Distinct sprints this person appeared in during the period
+    const sprintsRows = db.prepare(`
+      SELECT DISTINCT ssh.sprint
+      FROM story_sprint_history ssh
+      WHERE ssh.assignee_id = ?
+        AND ssh.imported_at >= ? AND ssh.imported_at <= ?
+    `).all(req.params.id, from, to + 'T23:59:59');
+    const sprints_active = sprintsRows.length;
+
+    // Avg sprints to complete for stories completed in this period
+    const completedWithTime = stories_completed.filter(s => s.sprints_to_complete > 0);
+    const avg_sprints_to_complete = completedWithTime.length > 0
+      ? +(completedWithTime.reduce((sum, s) => sum + s.sprints_to_complete, 0) / completedWithTime.length).toFixed(1)
+      : 0;
+
+    // Carry-over rate: % of stories assigned that carried over at least once
+    const allStoriesInPeriod = db.prepare(`
+      SELECT s.id, s.carry_over_count
+      FROM stories s
+      JOIN story_sprint_history ssh ON ssh.story_id = s.id
+      WHERE ssh.assignee_id = ?
+        AND ssh.imported_at >= ? AND ssh.imported_at <= ?
+      GROUP BY s.id
+    `).all(req.params.id, from, to + 'T23:59:59');
+    const carriedOver = allStoriesInPeriod.filter(s => s.carry_over_count > 0).length;
+    const carry_over_rate = allStoriesInPeriod.length > 0
+      ? +((carriedOver / allStoriesInPeriod.length) * 100).toFixed(1)
+      : 0;
+
+    // Velocity by sprint (points completed per sprint in the period)
+    const velocity_by_sprint = db.prepare(`
+      SELECT ssh.sprint,
+        COALESCE(SUM(s.story_points), 0) AS points_completed,
+        COUNT(*) AS stories_completed
+      FROM story_sprint_history ssh
+      JOIN stories s ON s.id = ssh.story_id
+      WHERE ssh.assignee_id = ? AND ssh.status = 'Done'
+        AND ssh.imported_at >= ? AND ssh.imported_at <= ?
+      GROUP BY ssh.sprint
+      ORDER BY ssh.sprint
+    `).all(req.params.id, from, to + 'T23:59:59');
+
+    // One-on-ones in the period
+    const one_on_ones = db.prepare(`
+      SELECT * FROM one_on_ones
+      WHERE team_member_id = ? AND date >= ? AND date <= ?
+      ORDER BY date DESC
+    `).all(req.params.id, from, to);
+
+    // Sentiment summary
+    const sentiment_summary = { engaged: 0, neutral: 0, frustrated: 0, needs_support: 0 };
+    for (const o of one_on_ones) {
+      if (sentiment_summary[o.sentiment] !== undefined) {
+        sentiment_summary[o.sentiment]++;
+      }
+    }
+
+    // Notes (performance and one_on_one categories) for this person in the period
+    const notes = db.prepare(`
+      SELECT n.*, p.name AS project_name, f.name AS feature_name
+      FROM notes n
+      LEFT JOIN projects p ON n.project_id = p.id
+      LEFT JOIN features f ON n.feature_id = f.id
+      WHERE n.team_member_id = ?
+        AND n.category IN ('performance', 'one_on_one')
+        AND n.created_at >= ? AND n.created_at <= ?
+      ORDER BY n.created_at DESC
+    `).all(req.params.id, from, to + 'T23:59:59');
+
+    // Blockers involving this person
+    const blockers_involved = db.prepare(`
+      SELECT b.*, p.name AS project_name
+      FROM blockers b
+      LEFT JOIN projects p ON b.project_id = p.id
+      WHERE b.team_member_id = ?
+        AND b.created_at >= ? AND b.created_at <= ?
+      ORDER BY b.created_at DESC
+    `).all(req.params.id, from, to + 'T23:59:59');
+
+    res.json({
+      stories_completed,
+      total_points,
+      sprints_active,
+      avg_sprints_to_complete,
+      carry_over_rate,
+      velocity_by_sprint,
+      one_on_ones,
+      sentiment_summary,
+      notes,
+      blockers_involved,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/team
 router.post('/', (req, res) => {
   try {
