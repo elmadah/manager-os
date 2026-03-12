@@ -631,7 +631,14 @@ PROJ-3,Dashboard widgets,Sprint 2,To Do,,8,`}
                         <td className="px-4 py-2.5 text-sm text-gray-900" title={row.summary}>
                           {truncate(row.summary)}
                         </td>
-                        <td className="px-4 py-2.5 text-sm text-gray-600">{row.sprint || '—'}</td>
+                        <td className="px-4 py-2.5 text-sm text-gray-600">
+                          {row.sprint || '—'}
+                          {row.sprint_count > 1 && (
+                            <span className="ml-1 text-xs text-amber-600" title={`Was in ${row.sprint_count} sprints: ${row.all_sprints.join(', ')}`}>
+                              ({row.sprint_count} sprints)
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-2.5 text-sm text-gray-600">{row.status || '—'}</td>
                         <td className="px-4 py-2.5 text-sm text-gray-600">
                           <span className="flex items-center gap-1">

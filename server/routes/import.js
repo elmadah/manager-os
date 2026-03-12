@@ -39,10 +39,21 @@ function normalizeRow(raw) {
     return null;
   };
 
+  // Parse comma-separated sprints from Jira (e.g. "Sprint 1, Sprint 2, Sprint 3")
+  const rawSprint = get(['Sprint', 'sprint']);
+  let sprint = rawSprint;
+  let all_sprints = [];
+  if (rawSprint) {
+    all_sprints = rawSprint.split(',').map(s => s.trim()).filter(Boolean);
+    sprint = all_sprints[all_sprints.length - 1]; // last sprint = current
+  }
+
   return {
     key: get(['Issue key', 'key']),
     summary: get(['Summary', 'summary']),
-    sprint: get(['Sprint', 'sprint']),
+    sprint,
+    all_sprints,
+    sprint_count: all_sprints.length,
     status: get(['Status', 'status']),
     assignee: get(['Assignee', 'assignee']),
     story_points: parseInt(get(['Story Points', 'Story point estimate', 'story_points']), 10) || 0,
@@ -154,7 +165,7 @@ router.post('/confirm', (req, res) => {
 
     const insertStory = db.prepare(`
       INSERT INTO stories (key, summary, sprint, status, assignee_id, story_points, release_date, first_seen_sprint, carry_over_count, feature_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const updateStory = db.prepare(`
@@ -199,11 +210,16 @@ router.post('/confirm', (req, res) => {
         const featureId = featureMap[row.key] || null;
 
         if (row.diff_status === 'new') {
+          const carryOverCount = Math.max(0, (row.sprint_count || 1) - 1);
+          const firstSprint = row.all_sprints.length > 0 ? row.all_sprints[0] : row.sprint;
           const result = insertStory.run(
             row.key, row.summary, row.sprint, row.status,
-            row.assignee_id, row.story_points, row.release_date, row.sprint, featureId
+            row.assignee_id, row.story_points, row.release_date, firstSprint, carryOverCount, featureId
           );
-          insertHistory.run(result.lastInsertRowid, row.sprint, row.status, row.assignee_id);
+          // Insert history entries for all sprints the story was part of
+          for (const sp of (row.all_sprints.length > 0 ? row.all_sprints : [row.sprint])) {
+            insertHistory.run(result.lastInsertRowid, sp, row.status, row.assignee_id);
+          }
           imported++;
         } else if (row.diff_status === 'updated') {
           updateStory.run(row.summary, row.sprint, row.status, row.assignee_id, row.story_points, row.key);
