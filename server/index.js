@@ -14,6 +14,15 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/dist')));
 }
 
+// Routes
+const projectsRouter = require('./routes/projects');
+const featuresRouter = require('./routes/features');
+const teamRouter = require('./routes/team');
+
+app.use('/api/projects', projectsRouter);
+app.use('/api', featuresRouter);
+app.use('/api/team', teamRouter);
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
