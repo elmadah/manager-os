@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import api from '../lib/api';
+import { useToast } from './ToastProvider';
 
 const STATUS_OPTIONS = [
   { value: 'upcoming', label: 'Upcoming' },
@@ -26,6 +27,7 @@ const EMPTY_FORM = {
 };
 
 export default function CreateProjectModal({ isOpen, onClose, onCreated, project }) {
+  const toast = useToast();
   const isEdit = !!project;
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
@@ -64,8 +66,10 @@ export default function CreateProjectModal({ isOpen, onClose, onCreated, project
       };
       if (isEdit) {
         await api.put(`/projects/${project.id}`, payload);
+        toast.success('Project updated');
       } else {
         await api.post('/projects', payload);
+        toast.success('Project created');
       }
       setForm(EMPTY_FORM);
       onCreated();

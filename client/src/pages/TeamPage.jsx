@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Users, X, Mail, Briefcase } from 'lucide-react';
 import api from '../lib/api';
+import { useToast } from '../components/ToastProvider';
 
 export default function TeamPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -114,6 +116,7 @@ export default function TeamPage() {
       {/* Add Member Modal */}
       {showAddModal && (
         <AddMemberModal
+          toast={toast}
           onClose={() => setShowAddModal(false)}
           onCreated={() => {
             setShowAddModal(false);
@@ -125,7 +128,7 @@ export default function TeamPage() {
   );
 }
 
-function AddMemberModal({ onClose, onCreated }) {
+function AddMemberModal({ toast, onClose, onCreated }) {
   const [form, setForm] = useState({ name: '', role: '', email: '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -140,6 +143,7 @@ function AddMemberModal({ onClose, onCreated }) {
     setError(null);
     try {
       await api.post('/team', form);
+      toast.success('Team member added');
       onCreated();
     } catch (err) {
       setError(err.data?.error || 'Failed to create team member');

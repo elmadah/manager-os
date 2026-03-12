@@ -4,6 +4,7 @@ import { ArrowLeft, Pencil, Trash2, X, RefreshCw, Zap, CheckCircle, Clock, Alert
 import { ComposedChart, LineChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import api from '../lib/api';
+import { useToast } from '../components/ToastProvider';
 import NotesPanel from '../components/NotesPanel';
 
 const STORY_STATUS_STYLES = {
@@ -47,6 +48,7 @@ const STATUS_OPTIONS = ['All', 'To Do', 'In Progress', 'In Review', 'Done'];
 export default function TeamMemberPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [member, setMember] = useState(null);
   const [stories, setStories] = useState([]);
@@ -84,9 +86,10 @@ export default function TeamMemberPage() {
   async function handleDelete() {
     try {
       await api.del(`/team/${id}`);
+      toast.success('Team member deleted');
       navigate('/team');
-    } catch (err) {
-      console.error('Failed to delete member:', err);
+    } catch {
+      toast.error('Failed to delete team member');
     }
   }
 

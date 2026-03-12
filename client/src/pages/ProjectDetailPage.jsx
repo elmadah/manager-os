@@ -5,6 +5,7 @@ import {
   X, BarChart3, Layers, BookOpen, Target, RefreshCw, TrendingUp,
 } from 'lucide-react';
 import api from '../lib/api';
+import { useToast } from '../components/ToastProvider';
 import CreateProjectModal from '../components/CreateProjectModal';
 import NotesPanel from '../components/NotesPanel';
 
@@ -64,6 +65,7 @@ const STORY_STATUS_STYLES = {
 export default function ProjectDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -137,9 +139,10 @@ export default function ProjectDetailPage() {
   async function handleDeleteProject() {
     try {
       await api.del(`/projects/${id}`);
+      toast.success('Project deleted');
       navigate('/projects');
-    } catch (err) {
-      console.error('Failed to delete project:', err);
+    } catch {
+      toast.error('Failed to delete project');
     }
   }
 
@@ -147,9 +150,10 @@ export default function ProjectDetailPage() {
     try {
       await api.del(`/features/${featureId}`);
       setDeletingFeature(null);
+      toast.success('Feature deleted');
       loadProject();
-    } catch (err) {
-      console.error('Failed to delete feature:', err);
+    } catch {
+      toast.error('Failed to delete feature');
     }
   }
 

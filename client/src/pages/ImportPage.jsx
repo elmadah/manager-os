@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileText, X, AlertTriangle, Check, Loader2, Filter } from 'lucide-react';
+import { Upload, FileText, X, AlertTriangle, Check, Loader2, Filter, DatabaseBackup } from 'lucide-react';
 import api from '../lib/api';
+import { useToast } from '../components/ToastProvider';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -15,7 +16,9 @@ const DIFF_COLORS = {
 
 export default function ImportPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const fileInputRef = useRef(null);
+  const restoreInputRef = useRef(null);
 
   // File state
   const [file, setFile] = useState(null);
@@ -45,6 +48,11 @@ export default function ImportPage() {
   // Confirm state
   const [confirming, setConfirming] = useState(false);
   const [importResult, setImportResult] = useState(null);
+
+  // Restore state
+  const [restoring, setRestoring] = useState(false);
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [restoreData, setRestoreData] = useState(null);
 
   const handleFile = (f) => {
     setError(null);
@@ -195,10 +203,43 @@ export default function ImportPage() {
         feature_assignments: featureAssignments,
       });
       setImportResult(result);
+      toast.success(`Imported ${result.imported} stories`);
     } catch (err) {
       setError(err.data?.error || err.message);
+      toast.error('Import failed');
     } finally {
       setConfirming(false);
+    }
+  };
+
+  const handleRestoreFile = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        setRestoreData(data);
+        setShowRestoreConfirm(true);
+      } catch {
+        toast.error('Invalid JSON file');
+      }
+    };
+    reader.readAsText(f);
+    e.target.value = '';
+  };
+
+  const handleRestore = async () => {
+    setRestoring(true);
+    setShowRestoreConfirm(false);
+    try {
+      const result = await api.post('/import/restore', restoreData);
+      toast.success(`Database restored: ${result.restored.projects} projects, ${result.restored.stories} stories`);
+      setRestoreData(null);
+    } catch (err) {
+      toast.error(err.data?.error || 'Restore failed');
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -276,6 +317,66 @@ export default function ImportPage() {
           <button onClick={() => setError(null)} className="ml-auto">
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {/* Restore from Backup */}
+      {!preview && (
+        <div className="mb-6 bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-50 rounded-lg">
+              <DatabaseBackup className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">Restore from Backup</h3>
+              <p className="text-xs text-gray-500">Upload a previously exported JSON backup to restore your data</p>
+            </div>
+          </div>
+          <button
+            onClick={() => restoreInputRef.current?.click()}
+            disabled={restoring}
+            className="px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 disabled:opacity-50"
+          >
+            {restoring ? 'Restoring...' : 'Choose Backup File'}
+          </button>
+          <input
+            ref={restoreInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleRestoreFile}
+          />
+        </div>
+      )}
+
+      {/* Restore Confirmation Modal */}
+      {showRestoreConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowRestoreConfirm(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Restore Database</h3>
+            <p className="text-sm text-gray-600 mb-2">
+              This will <strong>replace all existing data</strong> with the backup contents. This action cannot be undone.
+            </p>
+            {restoreData?.exported_at && (
+              <p className="text-xs text-gray-500 mb-4">
+                Backup created: {new Date(restoreData.exported_at).toLocaleString()}
+              </p>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setShowRestoreConfirm(false); setRestoreData(null); }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRestore}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+              >
+                Restore
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

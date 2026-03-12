@@ -4,6 +4,7 @@ import {
   AlertCircle, ArrowUpDown, ListTodo,
 } from 'lucide-react';
 import api from '../lib/api';
+import { useToast } from '../components/ToastProvider';
 
 const PRIORITY_STYLES = {
   high: 'bg-red-100 text-red-700',
@@ -35,6 +36,7 @@ const DUE_COLORS = {
 };
 
 export default function TodosPage() {
+  const toast = useToast();
   const [todos, setTodos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -122,8 +124,9 @@ export default function TodosPage() {
     try {
       await api.del(`/todos/${id}`);
       setTodos((prev) => prev.filter((t) => t.id !== id));
-    } catch (err) {
-      console.error('Failed to delete todo:', err);
+      toast.success('Todo deleted');
+    } catch {
+      toast.error('Failed to delete todo');
     }
   }
 
@@ -332,6 +335,7 @@ export default function TodosPage() {
       {showAddModal && (
         <TodoModal
           todo={editingTodo}
+          toast={toast}
           onClose={() => { setShowAddModal(false); setEditingTodo(null); }}
           onSaved={() => {
             setShowAddModal(false);
@@ -344,7 +348,7 @@ export default function TodosPage() {
   );
 }
 
-function TodoModal({ todo, onClose, onSaved }) {
+function TodoModal({ todo, toast, onClose, onSaved }) {
   const isEditing = !!todo;
   const [form, setForm] = useState({
     title: todo?.title || '',
@@ -380,8 +384,10 @@ function TodoModal({ todo, onClose, onSaved }) {
       };
       if (isEditing) {
         await api.put(`/todos/${todo.id}`, payload);
+        toast.success('Todo updated');
       } else {
         await api.post('/todos', payload);
+        toast.success('Todo created');
       }
       onSaved();
     } catch (err) {

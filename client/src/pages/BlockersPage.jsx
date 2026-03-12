@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, ShieldAlert, X, Check, Pencil, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import api from '../lib/api';
+import { useToast } from '../components/ToastProvider';
 
 const SEVERITY_STYLES = {
   critical: { badge: 'bg-red-100 text-red-700', border: 'border-l-red-500' },
@@ -20,6 +21,7 @@ const STATUS_LABELS = { active: 'Active', monitoring: 'Monitoring', resolved: 'R
 const SEVERITY_LABELS = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' };
 
 export default function BlockersPage() {
+  const toast = useToast();
   const [blockers, setBlockers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('active');
@@ -69,9 +71,10 @@ export default function BlockersPage() {
   async function handleResolve(blocker) {
     try {
       await api.put(`/blockers/${blocker.id}`, { status: 'resolved' });
+      toast.success('Blocker resolved');
       loadBlockers();
-    } catch (err) {
-      console.error('Failed to resolve blocker:', err);
+    } catch {
+      toast.error('Failed to resolve blocker');
     }
   }
 
@@ -79,9 +82,10 @@ export default function BlockersPage() {
     if (!window.confirm('Delete this blocker?')) return;
     try {
       await api.del(`/blockers/${id}`);
+      toast.success('Blocker deleted');
       loadBlockers();
-    } catch (err) {
-      console.error('Failed to delete blocker:', err);
+    } catch {
+      toast.error('Failed to delete blocker');
     }
   }
 
@@ -284,6 +288,7 @@ export default function BlockersPage() {
           features={features}
           setFeatures={setFeatures}
           teamMembers={teamMembers}
+          toast={toast}
           onClose={() => { setShowModal(false); setEditingBlocker(null); }}
           onSaved={() => { setShowModal(false); setEditingBlocker(null); loadBlockers(); }}
         />
@@ -292,7 +297,7 @@ export default function BlockersPage() {
   );
 }
 
-function BlockerModal({ blocker, projects, features, setFeatures, teamMembers, onClose, onSaved }) {
+function BlockerModal({ blocker, projects, features, setFeatures, teamMembers, toast, onClose, onSaved }) {
   const isEdit = !!blocker;
   const [form, setForm] = useState({
     title: blocker?.title || '',
@@ -331,8 +336,10 @@ function BlockerModal({ blocker, projects, features, setFeatures, teamMembers, o
       };
       if (isEdit) {
         await api.put(`/blockers/${blocker.id}`, payload);
+        toast.success('Blocker updated');
       } else {
         await api.post('/blockers', payload);
+        toast.success('Blocker created');
       }
       onSaved();
     } catch (err) {

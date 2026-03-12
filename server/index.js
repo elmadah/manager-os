@@ -2,12 +2,10 @@ const express = require('express');
 const path = require('path');
 const db = require('./db/init');
 
-console.log('Database initialized');
-
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 // Serve static files from client build in production
 if (process.env.NODE_ENV === 'production') {
@@ -25,6 +23,7 @@ const blockersRouter = require('./routes/blockers');
 const oneOnOnesRouter = require('./routes/oneOnOnes');
 const notesRouter = require('./routes/notes');
 const digestRouter = require('./routes/digest');
+const backupRouter = require('./routes/backup');
 
 app.use('/api/projects', projectsRouter);
 app.use('/api', featuresRouter);
@@ -36,6 +35,7 @@ app.use('/api/blockers', blockersRouter);
 app.use('/api', oneOnOnesRouter);
 app.use('/api/notes', notesRouter);
 app.use('/api/digest', digestRouter);
+app.use('/api', backupRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
