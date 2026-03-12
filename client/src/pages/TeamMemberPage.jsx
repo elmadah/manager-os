@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Pencil, Trash2, X, RefreshCw, Lock } from 'lucide-react';
+import { ArrowLeft, Pencil, Trash2, X, RefreshCw, Lock, Zap, CheckCircle, Clock, AlertTriangle, TrendingUp, ChevronUp, ChevronDown } from 'lucide-react';
+import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import api from '../lib/api';
 
 const STORY_STATUS_STYLES = {
@@ -17,7 +18,6 @@ const TABS = [
   { key: 'general_notes', label: 'Notes' },
 ];
 
-// Assign consistent colors per project
 const PROJECT_COLORS = [
   'border-l-blue-500',
   'border-l-green-500',
@@ -40,12 +40,16 @@ const PROJECT_BG_COLORS = [
   'bg-yellow-50 text-yellow-700',
 ];
 
+const STATUS_OPTIONS = ['All', 'To Do', 'In Progress', 'In Review', 'Done'];
+
 export default function TeamMemberPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [member, setMember] = useState(null);
   const [stories, setStories] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [velocity, setVelocity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
 
@@ -55,12 +59,15 @@ export default function TeamMemberPage() {
 
   async function loadData() {
     try {
-      const [memberData, storiesData] = await Promise.all([
+      const [memberData, storiesData, velocityData] = await Promise.all([
         api.get(`/team/${id}`),
         api.get(`/team/${id}/stories`),
+        api.get(`/team/${id}/velocity`),
       ]);
       setMember(memberData);
-      setStories(storiesData);
+      setStories(storiesData.stories);
+      setStats(storiesData.stats);
+      setVelocity(velocityData);
     } catch (err) {
       console.error('Failed to load member:', err);
     } finally {
@@ -118,19 +125,6 @@ export default function TeamMemberPage() {
       badge: PROJECT_BG_COLORS[i % PROJECT_BG_COLORS.length],
     };
   });
-
-  // Active stories = not Done
-  const activeStories = stories.filter((s) => s.status !== 'Done');
-  const totalActivePoints = activeStories.reduce((sum, s) => sum + (s.story_points || 0), 0);
-  const carryingOver = activeStories.filter((s) => s.carry_over_count > 0).length;
-
-  // Group active stories by project
-  const groupedByProject = {};
-  for (const story of activeStories) {
-    const proj = story.project_name || 'Unassigned';
-    if (!groupedByProject[proj]) groupedByProject[proj] = [];
-    groupedByProject[proj].push(story);
-  }
 
   return (
     <div>
@@ -199,11 +193,10 @@ export default function TeamMemberPage() {
       {/* Tab Content */}
       {activeTab === 'active' && (
         <ActiveWorkTab
-          activeStories={activeStories}
-          groupedByProject={groupedByProject}
+          stories={stories}
+          stats={stats}
+          velocity={velocity}
           projectColorMap={projectColorMap}
-          totalActivePoints={totalActivePoints}
-          carryingOver={carryingOver}
         />
       )}
 
@@ -252,62 +245,174 @@ export default function TeamMemberPage() {
   );
 }
 
-function ActiveWorkTab({ activeStories, groupedByProject, projectColorMap, totalActivePoints, carryingOver }) {
-  if (activeStories.length === 0) {
-    return (
-      <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-        <p className="text-gray-500">No active stories assigned.</p>
+function StatCard({ icon, label, value, color, highlight }) {
+  const colorMap = {
+    blue: 'bg-blue-50 text-blue-600',
+    green: 'bg-green-50 text-green-600',
+    purple: 'bg-purple-50 text-purple-600',
+    orange: 'bg-orange-50 text-orange-600',
+    teal: 'bg-teal-50 text-teal-600',
+  };
+
+  return (
+    <div className={`bg-white rounded-xl border p-4 ${highlight ? 'border-orange-300 bg-orange-50/30' : 'border-gray-200'}`}>
+      <div className={`inline-flex p-2 rounded-lg mb-2 ${colorMap[color] || colorMap.blue}`}>
+        {icon}
       </div>
-    );
+      <p className="text-xl font-bold text-gray-900">{value}</p>
+      <p className="text-xs text-gray-500">{label}</p>
+    </div>
+  );
+}
+
+function ActiveWorkTab({ stories, stats, velocity, projectColorMap }) {
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [sortCol, setSortCol] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
+
+  const filteredStories = useMemo(() => {
+    let filtered = stories;
+    if (statusFilter !== 'All') {
+      filtered = filtered.filter((s) => s.status === statusFilter);
+    }
+    if (sortCol) {
+      filtered = [...filtered].sort((a, b) => {
+        let aVal = a[sortCol];
+        let bVal = b[sortCol];
+        if (aVal == null) aVal = '';
+        if (bVal == null) bVal = '';
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+        }
+        const cmp = String(aVal).localeCompare(String(bVal));
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    }
+    return filtered;
+  }, [stories, statusFilter, sortCol, sortDir]);
+
+  function handleSort(col) {
+    if (sortCol === col) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
   }
+
+  function SortIcon({ col }) {
+    if (sortCol !== col) return <ChevronUp size={12} className="text-gray-300" />;
+    return sortDir === 'asc'
+      ? <ChevronUp size={12} className="text-blue-600" />
+      : <ChevronDown size={12} className="text-blue-600" />;
+  }
+
+  const columns = [
+    { key: 'key', label: 'Key' },
+    { key: 'summary', label: 'Summary' },
+    { key: 'feature_name', label: 'Feature' },
+    { key: 'project_name', label: 'Project' },
+    { key: 'sprint', label: 'Sprint' },
+    { key: 'status', label: 'Status' },
+    { key: 'story_points', label: 'Points' },
+    { key: 'carry_over_count', label: 'Carry-overs' },
+  ];
 
   return (
     <div>
-      {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-2xl font-bold text-gray-900">{activeStories.length}</p>
-          <p className="text-sm text-gray-500">Active stories</p>
+      {/* Summary Stat Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+          <StatCard
+            icon={<Zap size={18} />}
+            label="Active stories"
+            value={stats.total_active}
+            color="blue"
+          />
+          <StatCard
+            icon={<TrendingUp size={18} />}
+            label="Points in progress"
+            value={stats.total_points_in_progress}
+            color="purple"
+          />
+          <StatCard
+            icon={<AlertTriangle size={18} />}
+            label="Carrying over"
+            value={stats.carry_over_count}
+            color="orange"
+            highlight={stats.carry_over_count > 0}
+          />
+          <StatCard
+            icon={<CheckCircle size={18} />}
+            label="Completed (30d)"
+            value={stats.completed_last_30_days}
+            color="green"
+          />
+          <StatCard
+            icon={<Clock size={18} />}
+            label="Avg sprints to complete"
+            value={stats.avg_sprints_to_complete}
+            color="teal"
+          />
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-2xl font-bold text-gray-900">{totalActivePoints}</p>
-          <p className="text-sm text-gray-500">Points in progress</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-2xl font-bold text-gray-900">{carryingOver}</p>
-          <p className="text-sm text-gray-500">Stories carrying over</p>
-        </div>
+      )}
+
+      {/* Status filter */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xs font-medium text-gray-500">Filter:</span>
+        {STATUS_OPTIONS.map((opt) => (
+          <button
+            key={opt}
+            onClick={() => setStatusFilter(opt)}
+            className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${
+              statusFilter === opt
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {opt}
+          </button>
+        ))}
       </div>
 
-      {/* Stories Table grouped by project */}
-      {Object.entries(groupedByProject).map(([projectName, projectStories]) => (
-        <div key={projectName} className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${projectColorMap[projectName]?.badge || 'bg-gray-100 text-gray-700'}`}>
-              {projectName}
-            </span>
-            <span className="text-xs text-gray-400">{projectStories.length} stories</span>
-          </div>
-
-          <div className={`bg-white rounded-xl border border-gray-200 overflow-hidden border-l-4 ${projectColorMap[projectName]?.border || 'border-l-gray-300'}`}>
+      {/* Stories Table */}
+      {filteredStories.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+          <p className="text-gray-500">No stories match the current filter.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-8">
+          <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Key</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Summary</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Feature</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Sprint</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Status</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Points</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3">Carry-overs</th>
+                  {columns.map((col) => (
+                    <th
+                      key={col.key}
+                      onClick={() => handleSort(col.key)}
+                      className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3 cursor-pointer hover:text-gray-700 select-none"
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {col.label}
+                        <SortIcon col={col.key} />
+                      </span>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {projectStories.map((story) => (
+                {filteredStories.map((story) => (
                   <tr key={story.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-xs font-mono text-gray-600">{story.key}</td>
                     <td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">{story.summary}</td>
                     <td className="px-4 py-3 text-xs text-gray-600">{story.feature_name || '—'}</td>
+                    <td className="px-4 py-3">
+                      {story.project_name ? (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${projectColorMap[story.project_name]?.badge || 'bg-gray-100 text-gray-700'}`}>
+                          {story.project_name}
+                        </span>
+                      ) : '—'}
+                    </td>
                     <td className="px-4 py-3 text-xs text-gray-600">{story.sprint || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STORY_STATUS_STYLES[story.status] || 'bg-gray-100 text-gray-700'}`}>
@@ -331,7 +436,59 @@ function ActiveWorkTab({ activeStories, groupedByProject, projectColorMap, total
             </table>
           </div>
         </div>
-      ))}
+      )}
+
+      {/* Velocity Chart */}
+      <VelocityChart velocity={velocity} />
+    </div>
+  );
+}
+
+function VelocityChart({ velocity }) {
+  if (!velocity || velocity.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Velocity</h3>
+        <div className="text-center py-12">
+          <TrendingUp size={40} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-gray-500">No velocity data available yet.</p>
+          <p className="text-sm text-gray-400 mt-1">Velocity will appear once stories are completed across sprints.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Velocity</h3>
+      <ResponsiveContainer width="100%" height={300}>
+        <ComposedChart data={velocity}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="sprint" tick={{ fontSize: 12 }} />
+          <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
+          <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+          <Tooltip />
+          <Legend />
+          <Line
+            yAxisId="left"
+            type="monotone"
+            dataKey="points_completed"
+            name="Points Completed"
+            stroke="#3b82f6"
+            strokeWidth={2}
+            dot={{ r: 4 }}
+            activeDot={{ r: 6 }}
+          />
+          <Bar
+            yAxisId="right"
+            dataKey="carry_over_count"
+            name="Carry-overs"
+            fill="#f97316"
+            radius={[4, 4, 0, 0]}
+            opacity={0.7}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
     </div>
   );
 }

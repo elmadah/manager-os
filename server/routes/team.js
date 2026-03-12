@@ -59,7 +59,7 @@ router.get('/:id', (req, res) => {
   }
 });
 
-// GET /api/team/:id/stories — all stories assigned to member with project/feature names
+// GET /api/team/:id/stories — stories grouped by status with summary stats
 router.get('/:id/stories', (req, res) => {
   try {
     const member = db.prepare('SELECT * FROM team_members WHERE id = ?').get(req.params.id);
@@ -77,7 +77,94 @@ router.get('/:id/stories', (req, res) => {
       ORDER BY p.name, f.name, s.created_at
     `).all(req.params.id);
 
-    res.json(stories);
+    const inProgress = stories.filter(s => s.status !== 'Done');
+    const carryOver = stories.filter(s => s.status !== 'Done' && s.carry_over_count > 0);
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const completedRecently = stories.filter(s =>
+      s.status === 'Done' && s.updated_at && new Date(s.updated_at) >= thirtyDaysAgo
+    );
+
+    const completedWithTime = stories.filter(s => s.status === 'Done' && s.sprints_to_complete > 0);
+    const avgSprintsToComplete = completedWithTime.length > 0
+      ? +(completedWithTime.reduce((sum, s) => sum + s.sprints_to_complete, 0) / completedWithTime.length).toFixed(1)
+      : 0;
+
+    const grouped = {
+      in_progress: inProgress,
+      carry_over: carryOver,
+      completed_recently: completedRecently,
+    };
+
+    const stats = {
+      total_active: inProgress.length,
+      total_points_in_progress: inProgress.reduce((sum, s) => sum + (s.story_points || 0), 0),
+      carry_over_count: carryOver.length,
+      completed_last_30_days: completedRecently.length,
+      avg_sprints_to_complete: avgSprintsToComplete,
+    };
+
+    res.json({ stories, grouped, stats });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/team/:id/velocity — story points completed per sprint
+router.get('/:id/velocity', (req, res) => {
+  try {
+    const member = db.prepare('SELECT * FROM team_members WHERE id = ?').get(req.params.id);
+    if (!member) return res.status(404).json({ error: 'Team member not found' });
+
+    // Points completed per sprint (stories marked Done in that sprint)
+    const completedPerSprint = db.prepare(`
+      SELECT ssh.sprint,
+        COALESCE(SUM(s.story_points), 0) AS points_completed,
+        COUNT(*) AS stories_completed
+      FROM story_sprint_history ssh
+      JOIN stories s ON s.id = ssh.story_id
+      WHERE ssh.assignee_id = ? AND ssh.status = 'Done'
+      GROUP BY ssh.sprint
+      ORDER BY ssh.sprint
+    `).all(req.params.id);
+
+    // Carry-over count per sprint (stories seen in sprint that have carry_over_count > 0)
+    const carryOversPerSprint = db.prepare(`
+      SELECT ssh.sprint,
+        COUNT(*) AS carry_over_count
+      FROM story_sprint_history ssh
+      JOIN stories s ON s.id = ssh.story_id
+      WHERE ssh.assignee_id = ? AND ssh.status != 'Done' AND s.carry_over_count > 0
+      GROUP BY ssh.sprint
+      ORDER BY ssh.sprint
+    `).all(req.params.id);
+
+    // Merge into a single dataset
+    const sprintMap = {};
+    for (const row of completedPerSprint) {
+      sprintMap[row.sprint] = {
+        sprint: row.sprint,
+        points_completed: row.points_completed,
+        stories_completed: row.stories_completed,
+        carry_over_count: 0,
+      };
+    }
+    for (const row of carryOversPerSprint) {
+      if (!sprintMap[row.sprint]) {
+        sprintMap[row.sprint] = {
+          sprint: row.sprint,
+          points_completed: 0,
+          stories_completed: 0,
+          carry_over_count: 0,
+        };
+      }
+      sprintMap[row.sprint].carry_over_count = row.carry_over_count;
+    }
+
+    const velocity = Object.values(sprintMap).sort((a, b) => a.sprint.localeCompare(b.sprint));
+
+    res.json(velocity);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
