@@ -59,6 +59,30 @@ router.get('/:id', (req, res) => {
   }
 });
 
+// GET /api/team/:id/stories — all stories assigned to member with project/feature names
+router.get('/:id/stories', (req, res) => {
+  try {
+    const member = db.prepare('SELECT * FROM team_members WHERE id = ?').get(req.params.id);
+    if (!member) return res.status(404).json({ error: 'Team member not found' });
+
+    const stories = db.prepare(`
+      SELECT s.*,
+        f.name AS feature_name,
+        p.name AS project_name,
+        p.id AS project_id
+      FROM stories s
+      LEFT JOIN features f ON f.id = s.feature_id
+      LEFT JOIN projects p ON p.id = f.project_id
+      WHERE s.assignee_id = ?
+      ORDER BY p.name, f.name, s.created_at
+    `).all(req.params.id);
+
+    res.json(stories);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/team
 router.post('/', (req, res) => {
   try {
