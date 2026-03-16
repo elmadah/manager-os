@@ -25,6 +25,7 @@ const notesRouter = require('./routes/notes');
 const digestRouter = require('./routes/digest');
 const backupRouter = require('./routes/backup');
 const timelineRouter = require('./routes/timeline');
+const uploadsRouter = require('./routes/uploads');
 
 app.use('/api/projects', projectsRouter);
 app.use('/api', featuresRouter);
@@ -38,6 +39,8 @@ app.use('/api/notes', notesRouter);
 app.use('/api/digest', digestRouter);
 app.use('/api', backupRouter);
 app.use('/api/timeline', timelineRouter);
+app.use('/api/uploads', express.static(path.join(__dirname, '../data/uploads')));
+app.use('/api/uploads', uploadsRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
