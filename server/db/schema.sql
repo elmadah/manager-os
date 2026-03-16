@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS todos (
   due_date TEXT,
   priority TEXT DEFAULT 'medium' CHECK(priority IN ('high','medium','low')),
   is_complete INTEGER DEFAULT 0,
+  sort_order INTEGER DEFAULT 0,
   project_id INTEGER REFERENCES projects(id),
   team_member_id INTEGER REFERENCES team_members(id),
   created_at TEXT DEFAULT (datetime('now')),

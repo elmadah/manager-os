@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { StickyNote, Plus, Search, Pencil, Trash2, X, Eye, EyeOff } from 'lucide-react';
+import { StickyNote, Plus, Search, Pencil, Trash2, X } from 'lucide-react';
+import TiptapEditor from '../components/TiptapEditor';
 import ReactMarkdown from 'react-markdown';
 import api from '../lib/api';
 
@@ -138,7 +139,8 @@ export default function NotesPage() {
   }
 
   function getPreview(content) {
-    const plain = content.replace(/[#*_~`>\-\[\]()!]/g, '').trim();
+    if (!content) return '';
+    const plain = content.replace(/<[^>]*>/g, '').replace(/[#*_~`>\-\[\]()!]/g, '').trim();
     return plain.length > 100 ? plain.slice(0, 100) + '...' : plain;
   }
 
@@ -314,7 +316,11 @@ export default function NotesPage() {
 
               {/* Content */}
               <div className="prose prose-sm max-w-none text-gray-700">
-                <ReactMarkdown>{selectedNote.content}</ReactMarkdown>
+                {selectedNote.content?.startsWith('<') ? (
+                  <div dangerouslySetInnerHTML={{ __html: selectedNote.content }} />
+                ) : (
+                  <ReactMarkdown>{selectedNote.content}</ReactMarkdown>
+                )}
               </div>
             </div>
           ) : (
@@ -365,7 +371,6 @@ function NoteEditor({ note, projects, features, teamMembers, onSave, onCancel })
     feature_id: note?.feature_id || '',
     team_member_id: note?.team_member_id || '',
   });
-  const [preview, setPreview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [localFeatures, setLocalFeatures] = useState(features || []);
@@ -447,31 +452,12 @@ function NoteEditor({ note, projects, features, teamMembers, onSave, onCancel })
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-medium text-gray-600">Content *</label>
-            <button
-              type="button"
-              onClick={() => setPreview(!preview)}
-              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
-            >
-              {preview ? <EyeOff size={12} /> : <Eye size={12} />}
-              {preview ? 'Edit' : 'Preview'}
-            </button>
-          </div>
-          {preview ? (
-            <div className="min-h-[200px] p-3 border border-gray-300 rounded-lg prose prose-sm max-w-none text-gray-700 bg-gray-50">
-              <ReactMarkdown>{form.content || '*Nothing to preview*'}</ReactMarkdown>
-            </div>
-          ) : (
-            <textarea
-              name="content"
-              value={form.content}
-              onChange={handleChange}
-              rows={10}
-              placeholder="Write your note... Markdown supported"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono resize-y"
-            />
-          )}
+          <label className="text-xs font-medium text-gray-600 mb-1 block">Content *</label>
+          <TiptapEditor
+            content={form.content}
+            onChange={(html) => setForm((f) => ({ ...f, content: html }))}
+            placeholder="Write your note..."
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

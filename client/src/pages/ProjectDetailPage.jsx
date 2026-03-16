@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Plus, ChevronDown, ChevronRight, Pencil, Trash2,
   X, BarChart3, Layers, BookOpen, Target, RefreshCw, TrendingUp,
+  CheckSquare, Square, Calendar, AlertCircle, ListTodo, GripVertical,
 } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import api from '../lib/api';
 import { useToast } from '../components/ToastProvider';
 import CreateProjectModal from '../components/CreateProjectModal';
@@ -381,6 +383,11 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
+      {/* Todos Section */}
+      <div className="mt-8">
+        <ProjectTodos projectId={id} toast={toast} />
+      </div>
+
       {/* Notes Section */}
       <div className="mt-8">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Notes</h2>
@@ -756,6 +763,272 @@ function FeatureModal({ projectId, feature, onClose, onSaved }) {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+const TODO_PRIORITY_STYLES = {
+  high: 'bg-red-100 text-red-700',
+  medium: 'bg-yellow-100 text-yellow-700',
+  low: 'bg-gray-100 text-gray-500',
+};
+
+const TODO_DUE_COLORS = {
+  overdue: 'text-red-600',
+  today: 'text-yellow-600',
+  future: 'text-gray-500',
+  none: 'text-gray-400',
+};
+
+function todoDueDateStatus(dateStr) {
+  if (!dateStr) return 'none';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dateStr + 'T00:00:00');
+  if (due < today) return 'overdue';
+  if (due.getTime() === today.getTime()) return 'today';
+  return 'future';
+}
+
+function formatTodoDate(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function ProjectTodos({ projectId, toast }) {
+  const [todos, setTodos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [inlineTitle, setInlineTitle] = useState('');
+  const [inlinePriority, setInlinePriority] = useState('medium');
+  const [inlineDueDate, setInlineDueDate] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const inlineInputRef = useRef(null);
+
+  async function loadTodos() {
+    try {
+      const data = await api.get(`/todos?project_id=${encodeURIComponent(projectId)}`);
+      setTodos(data);
+    } catch (err) {
+      console.error('Failed to load project todos:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadTodos();
+  }, [projectId]);
+
+  async function toggleTodo(todo) {
+    setTodos((prev) =>
+      prev.map((t) => (t.id === todo.id ? { ...t, is_complete: t.is_complete ? 0 : 1 } : t))
+    );
+    try {
+      await api.put(`/todos/${todo.id}/toggle`);
+    } catch {
+      setTodos((prev) =>
+        prev.map((t) => (t.id === todo.id ? { ...t, is_complete: todo.is_complete } : t))
+      );
+    }
+  }
+
+  async function deleteTodo(id) {
+    try {
+      await api.del(`/todos/${id}`);
+      setTodos((prev) => prev.filter((t) => t.id !== id));
+      toast.success('Todo deleted');
+    } catch {
+      toast.error('Failed to delete todo');
+    }
+  }
+
+  async function handleInlineAdd(e) {
+    e.preventDefault();
+    const trimmed = inlineTitle.trim();
+    if (!trimmed) return;
+
+    setSubmitting(true);
+    try {
+      await api.post('/todos', {
+        title: trimmed,
+        priority: inlinePriority,
+        due_date: inlineDueDate || null,
+        project_id: Number(projectId),
+      });
+      setInlineTitle('');
+      setInlinePriority('medium');
+      setInlineDueDate('');
+      loadTodos();
+      // Re-focus input for rapid entry
+      setTimeout(() => inlineInputRef.current?.focus(), 50);
+    } catch {
+      toast.error('Failed to add todo');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDragEnd(result) {
+    if (!result.destination) return;
+    const srcIdx = result.source.index;
+    const destIdx = result.destination.index;
+    if (srcIdx === destIdx) return;
+
+    const reordered = Array.from(todos);
+    const [moved] = reordered.splice(srcIdx, 1);
+    reordered.splice(destIdx, 0, moved);
+    setTodos(reordered);
+
+    try {
+      await api.put('/todos/reorder', { orderedIds: reordered.map((t) => t.id) });
+    } catch {
+      loadTodos();
+    }
+  }
+
+  const activeTodos = todos.filter((t) => !t.is_complete);
+  const completedTodos = todos.filter((t) => t.is_complete);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold text-gray-900">
+          To-Dos
+          {todos.length > 0 && (
+            <span className="ml-2 text-sm font-normal text-gray-400">
+              {activeTodos.length} active{completedTodos.length > 0 ? `, ${completedTodos.length} done` : ''}
+            </span>
+          )}
+        </h2>
+      </div>
+
+      {/* Inline Add Form — always visible */}
+      <form onSubmit={handleInlineAdd} className="flex items-center gap-2 mb-4">
+        <Plus size={16} className="text-gray-400 shrink-0" />
+        <input
+          ref={inlineInputRef}
+          value={inlineTitle}
+          onChange={(e) => setInlineTitle(e.target.value)}
+          placeholder="Add a to-do…"
+          className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-gray-50 focus:bg-white transition-colors"
+        />
+        <select
+          value={inlinePriority}
+          onChange={(e) => setInlinePriority(e.target.value)}
+          className="px-2 py-2 text-xs border border-gray-200 rounded-lg outline-none bg-gray-50"
+        >
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <input
+          type="date"
+          value={inlineDueDate}
+          onChange={(e) => setInlineDueDate(e.target.value)}
+          className="px-2 py-2 text-xs border border-gray-200 rounded-lg outline-none bg-gray-50"
+        />
+        <button
+          type="submit"
+          disabled={submitting || !inlineTitle.trim()}
+          className="px-3 py-2 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 shrink-0"
+        >
+          {submitting ? 'Adding…' : 'Add'}
+        </button>
+      </form>
+
+      {loading ? (
+        <div className="text-center py-8 text-gray-400 text-sm">Loading todos…</div>
+      ) : todos.length === 0 ? (
+        <div className="text-center py-8 bg-white rounded-xl border border-gray-200">
+          <ListTodo size={32} className="mx-auto text-gray-300 mb-2" />
+          <p className="text-sm text-gray-500">No to-dos for this project yet.</p>
+        </div>
+      ) : (
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <Droppable droppableId="project-todos">
+            {(provided) => (
+              <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-1.5">
+                {activeTodos.map((todo, index) => (
+                  <Draggable key={todo.id} draggableId={`pt-${todo.id}`} index={index}>
+                    {(provided, snapshot) => (
+                      <div ref={provided.innerRef} {...provided.draggableProps}>
+                        <ProjectTodoItem
+                          todo={todo}
+                          onToggle={() => toggleTodo(todo)}
+                          onDelete={() => deleteTodo(todo.id)}
+                          dragHandleProps={provided.dragHandleProps}
+                          isDragging={snapshot.isDragging}
+                        />
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
+                {completedTodos.length > 0 && (
+                  <>
+                    {activeTodos.length > 0 && <div className="border-t border-gray-100 my-2" />}
+                    {completedTodos.map((todo) => (
+                      <ProjectTodoItem
+                        key={todo.id}
+                        todo={todo}
+                        onToggle={() => toggleTodo(todo)}
+                        onDelete={() => deleteTodo(todo.id)}
+                      />
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
+      )}
+    </div>
+  );
+}
+
+function ProjectTodoItem({ todo, onToggle, onDelete, dragHandleProps, isDragging }) {
+  const dueStatus = todoDueDateStatus(todo.due_date);
+  const isOverdue = !todo.is_complete && dueStatus === 'overdue';
+
+  return (
+    <div className={`group flex items-start gap-2 bg-white rounded-lg border border-gray-200 px-3 py-2.5 hover:shadow-sm transition-all ${
+      isOverdue ? 'border-l-4 border-l-red-500' : ''
+    } ${todo.is_complete ? 'opacity-60' : ''} ${isDragging ? 'shadow-lg rotate-1' : ''}`}>
+      {dragHandleProps && (
+        <div
+          {...dragHandleProps}
+          className="mt-0.5 shrink-0 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing"
+        >
+          <GripVertical size={14} />
+        </div>
+      )}
+      <button onClick={onToggle} className="mt-0.5 shrink-0 text-gray-400 hover:text-blue-600 transition-colors">
+        {todo.is_complete ? <CheckSquare size={18} className="text-green-500" /> : <Square size={18} />}
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className={`text-sm font-medium ${todo.is_complete ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+            {todo.title}
+          </span>
+          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full capitalize ${TODO_PRIORITY_STYLES[todo.priority]}`}>
+            {todo.priority}
+          </span>
+        </div>
+        {todo.due_date && (
+          <span className={`flex items-center gap-1 text-xs mt-0.5 ${todo.is_complete ? 'text-gray-400' : TODO_DUE_COLORS[dueStatus]}`}>
+            <Calendar size={10} />
+            {formatTodoDate(todo.due_date)}
+            {isOverdue && <AlertCircle size={10} />}
+          </span>
+        )}
+      </div>
+      <button
+        onClick={onDelete}
+        className="p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+      >
+        <Trash2 size={14} />
+      </button>
     </div>
   );
 }
