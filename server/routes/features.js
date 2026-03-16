@@ -152,6 +152,53 @@ router.put('/features/:id', (req, res) => {
   }
 });
 
+// PUT /api/stories/:id
+router.put('/stories/:id', (req, res) => {
+  try {
+    const existing = db.prepare('SELECT * FROM stories WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Story not found' });
+
+    const { summary, sprint, status, assignee_id, story_points, release_date } = req.body;
+    db.prepare(`
+      UPDATE stories SET
+        summary = ?, sprint = ?, status = ?, assignee_id = ?,
+        story_points = ?, release_date = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      summary ?? existing.summary,
+      sprint ?? existing.sprint,
+      status ?? existing.status,
+      assignee_id !== undefined ? assignee_id : existing.assignee_id,
+      story_points ?? existing.story_points,
+      release_date !== undefined ? release_date : existing.release_date,
+      req.params.id
+    );
+
+    const story = db.prepare(`
+      SELECT s.*, tm.name AS assignee_name
+      FROM stories s
+      LEFT JOIN team_members tm ON tm.id = s.assignee_id
+      WHERE s.id = ?
+    `).get(req.params.id);
+    res.json(story);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/stories/:id
+router.delete('/stories/:id', (req, res) => {
+  try {
+    const existing = db.prepare('SELECT * FROM stories WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Story not found' });
+
+    db.prepare('DELETE FROM stories WHERE id = ?').run(req.params.id);
+    res.json({ message: 'Story deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/features/:id
 router.delete('/features/:id', (req, res) => {
   try {
