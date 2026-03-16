@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Pencil, Trash2, X, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, StickyNote, Search } from 'lucide-react';
 import TiptapEditor from './TiptapEditor';
 import ReactMarkdown from 'react-markdown';
 import api from '../lib/api';
 
 const CATEGORIES = [
   { key: 'all', label: 'All' },
-  { key: 'general', label: 'General', color: 'bg-gray-100 text-gray-700' },
-  { key: 'one_on_one', label: '1:1', color: 'bg-purple-100 text-purple-700' },
-  { key: 'performance', label: 'Performance', color: 'bg-blue-100 text-blue-700' },
-  { key: 'update', label: 'Update', color: 'bg-green-100 text-green-700' },
-  { key: 'blocker', label: 'Blocker', color: 'bg-red-100 text-red-700' },
-  { key: 'retro', label: 'Retro', color: 'bg-yellow-100 text-yellow-700' },
+  { key: 'general', label: 'General' },
+  { key: 'one_on_one', label: '1:1' },
+  { key: 'performance', label: 'Performance' },
+  { key: 'update', label: 'Update' },
+  { key: 'blocker', label: 'Blocker' },
+  { key: 'retro', label: 'Retro' },
 ];
 
 const CATEGORY_STYLES = {
@@ -32,22 +32,20 @@ const CATEGORY_LABELS = {
   retro: 'Retro',
 };
 
-export default function NotesPanel({ projectId, featureId, teamMemberId, showSearch = true }) {
+export default function NotesPanel({ projectId, featureId, teamMemberId }) {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedNote, setSelectedNote] = useState(null);
   const [showEditor, setShowEditor] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  // Lookup data for dropdowns
   const [projects, setProjects] = useState([]);
   const [features, setFeatures] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
 
-  // Debounce search
   const searchTimer = useRef(null);
   const handleSearchChange = useCallback((value) => {
     setSearchQuery(value);
@@ -60,12 +58,10 @@ export default function NotesPanel({ projectId, featureId, teamMemberId, showSea
   async function loadNotes() {
     try {
       const params = new URLSearchParams();
-      if (categoryFilter !== 'all') params.set('category', categoryFilter);
       if (projectId) params.set('project_id', projectId);
       if (featureId) params.set('feature_id', featureId);
       if (teamMemberId) params.set('team_member_id', teamMemberId);
       if (debouncedSearch) params.set('search', debouncedSearch);
-
       const qs = params.toString();
       const data = await api.get(`/notes${qs ? `?${qs}` : ''}`);
       setNotes(data);
@@ -89,18 +85,24 @@ export default function NotesPanel({ projectId, featureId, teamMemberId, showSea
     }
   }
 
-  useEffect(() => {
-    loadLookups();
-  }, []);
+  useEffect(() => { loadLookups(); }, []);
+  useEffect(() => { loadNotes(); }, [debouncedSearch, projectId, featureId, teamMemberId]);
 
   useEffect(() => {
-    loadNotes();
-  }, [categoryFilter, debouncedSearch, projectId, featureId, teamMemberId]);
+    if (selectedNote) {
+      const updated = notes.find((n) => n.id === selectedNote.id);
+      if (updated) setSelectedNote(updated);
+    }
+  }, [notes]);
 
   async function handleDelete(id) {
     try {
       await api.del(`/notes/${id}`);
       setDeleteConfirm(null);
+      if (selectedNote?.id === id) {
+        setSelectedNote(null);
+        setShowEditor(false);
+      }
       loadNotes();
     } catch (err) {
       console.error('Failed to delete note:', err);
@@ -109,11 +111,13 @@ export default function NotesPanel({ projectId, featureId, teamMemberId, showSea
 
   function handleEdit(note) {
     setEditingNote(note);
+    setSelectedNote(note);
     setShowEditor(true);
   }
 
   function handleNew() {
     setEditingNote(null);
+    setSelectedNote(null);
     setShowEditor(true);
   }
 
@@ -128,106 +132,179 @@ export default function NotesPanel({ projectId, featureId, teamMemberId, showSea
     setEditingNote(null);
   }
 
-  // Load features when a project is selected in the editor
-  async function loadFeaturesForProject(pid) {
-    if (!pid) {
-      setFeatures([]);
-      return;
-    }
-    try {
-      const data = await api.get(`/projects/${pid}/features`);
-      setFeatures(data);
-    } catch (err) {
-      console.error('Failed to load features:', err);
-      setFeatures([]);
-    }
+  function handleSelectNote(note) {
+    setSelectedNote(note);
+    setShowEditor(false);
+    setEditingNote(null);
   }
+
+  function getPreview(content) {
+    if (!content) return '';
+    const plain = content.replace(/<[^>]*>/g, '').replace(/[#*_~`>\-\[\]()!]/g, '').trim();
+    return plain.length > 100 ? plain.slice(0, 100) + '...' : plain;
+  }
+
+  const formatDate = (dateStr) =>
+    new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
 
   return (
     <div>
-      {/* Search bar */}
-      {showSearch && (
-        <div className="relative mb-4">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      {/* Search + New button */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="relative flex-1 max-w-xs">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search notes..."
-            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
           />
         </div>
-      )}
-
-      {/* Category filter tabs */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.key}
-            onClick={() => setCategoryFilter(cat.key)}
-            className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${
-              categoryFilter === cat.key
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Add Note button */}
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-medium text-gray-500">
-          {loading ? 'Loading...' : `${notes.length} note${notes.length !== 1 ? 's' : ''}`}
-        </h3>
-        {!showEditor && (
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-xs text-gray-500">
+            {loading ? 'Loading...' : `${notes.length} note${notes.length !== 1 ? 's' : ''}`}
+          </span>
           <button
             onClick={handleNew}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
           >
-            <Plus size={14} />
-            Add Note
+            <Plus size={12} />
+            New Note
           </button>
-        )}
+        </div>
       </div>
 
-      {/* Inline Editor */}
-      {showEditor && (
-        <NoteEditor
-          note={editingNote}
-          projectId={projectId}
-          featureId={featureId}
-          teamMemberId={teamMemberId}
-          projects={projects}
-          features={features}
-          teamMembers={teamMembers}
-          onLoadFeatures={loadFeaturesForProject}
-          onSave={handleSaved}
-          onCancel={handleCancel}
-        />
-      )}
+      {/* Sidebar + Main content layout */}
+      <div className="flex gap-4" style={{ height: '500px' }}>
+        {/* Sidebar */}
+        <div className="w-72 shrink-0 flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="text-center py-8 text-gray-400 text-sm">Loading...</div>
+            ) : notes.length === 0 ? (
+              <div className="text-center py-8 text-gray-400 text-sm">No notes found</div>
+            ) : (
+              notes.map((note) => (
+                <button
+                  key={note.id}
+                  onClick={() => handleSelectNote(note)}
+                  className={`w-full text-left px-3 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${
+                    selectedNote?.id === note.id ? 'bg-blue-50 border-l-2 border-l-blue-500' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${CATEGORY_STYLES[note.category] || CATEGORY_STYLES.general}`}>
+                      {CATEGORY_LABELS[note.category] || note.category}
+                    </span>
+                    {note.feature_name && (
+                      <span className="text-[10px] text-purple-600 truncate">{note.feature_name}</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-700 line-clamp-2 leading-snug">
+                    {getPreview(note.content)}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] text-gray-400">{formatDate(note.updated_at)}</span>
+                    {note.team_member_name && (
+                      <span className="text-[10px] text-teal-600">{note.team_member_name}</span>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
 
-      {/* Notes List */}
-      {loading ? (
-        <div className="text-center py-12 text-gray-400">Loading notes...</div>
-      ) : notes.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-          <p className="text-gray-500">No notes yet.</p>
-          <p className="text-sm text-gray-400 mt-1">Click "Add Note" to create one.</p>
+        {/* Main content */}
+        <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 overflow-y-auto">
+          {showEditor ? (
+            <div className="p-6">
+              <NoteEditor
+                note={editingNote}
+                projectId={projectId}
+                featureId={featureId}
+                teamMemberId={teamMemberId}
+                projects={projects}
+                features={features}
+                teamMembers={teamMembers}
+                onSave={handleSaved}
+                onCancel={handleCancel}
+              />
+            </div>
+          ) : selectedNote ? (
+            <div className="p-6">
+              {/* Note header */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${CATEGORY_STYLES[selectedNote.category] || CATEGORY_STYLES.general}`}>
+                    {CATEGORY_LABELS[selectedNote.category] || selectedNote.category}
+                  </span>
+                  {selectedNote.feature_name && (
+                    <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-purple-50 text-purple-600">
+                      {selectedNote.feature_name}
+                    </span>
+                  )}
+                  {selectedNote.team_member_name && (
+                    <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-teal-50 text-teal-600">
+                      {selectedNote.team_member_name}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0 ml-4">
+                  <button
+                    onClick={() => handleEdit(selectedNote)}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirm(selectedNote.id)}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Date */}
+              <div className="mb-4 pb-4 border-b border-gray-100">
+                <span className="text-xs text-gray-400">
+                  {new Date(selectedNote.updated_at).toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
+
+              {/* Content */}
+              <div className="prose prose-sm max-w-none text-gray-700">
+                {selectedNote.content?.startsWith('<') ? (
+                  <div dangerouslySetInnerHTML={{ __html: selectedNote.content }} />
+                ) : (
+                  <ReactMarkdown>{selectedNote.content}</ReactMarkdown>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-400">
+              <div className="text-center">
+                <StickyNote size={48} className="mx-auto mb-3 opacity-30" />
+                <p className="text-sm">Select a note to view it</p>
+                <p className="text-xs mt-1">or click "New Note" to create one</p>
+              </div>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="space-y-3">
-          {notes.map((note) => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              onEdit={() => handleEdit(note)}
-              onDelete={() => setDeleteConfirm(note.id)}
-            />
-          ))}
-        </div>
-      )}
+      </div>
 
       {/* Delete Confirmation */}
       {deleteConfirm && (
@@ -256,73 +333,7 @@ export default function NotesPanel({ projectId, featureId, teamMemberId, showSea
   );
 }
 
-function NoteCard({ note, onEdit, onDelete }) {
-  const dateStr = new Date(note.updated_at).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
-      {/* Header row */}
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_STYLES[note.category] || CATEGORY_STYLES.general}`}>
-            {CATEGORY_LABELS[note.category] || note.category}
-          </span>
-          {note.project_name && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
-              {note.project_name}
-            </span>
-          )}
-          {note.feature_name && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-50 text-purple-600">
-              {note.feature_name}
-            </span>
-          )}
-          {note.team_member_name && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-teal-50 text-teal-600">
-              {note.team_member_name}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1 shrink-0 ml-2">
-          <button
-            onClick={onEdit}
-            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-          >
-            <Pencil size={14} />
-          </button>
-          <button
-            onClick={onDelete}
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="prose prose-sm max-w-none text-gray-700">
-        {note.content?.startsWith('<') ? (
-          <div dangerouslySetInnerHTML={{ __html: note.content }} />
-        ) : (
-          <ReactMarkdown>{note.content}</ReactMarkdown>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="mt-3 pt-2 border-t border-gray-100">
-        <span className="text-xs text-gray-400">{dateStr}</span>
-      </div>
-    </div>
-  );
-}
-
-function NoteEditor({ note, projectId, featureId, teamMemberId, projects, features, teamMembers, onLoadFeatures, onSave, onCancel }) {
+function NoteEditor({ note, projectId, featureId, teamMemberId, projects, features, teamMembers, onSave, onCancel }) {
   const isEdit = !!note;
   const [form, setForm] = useState({
     content: note?.content || '',
@@ -335,7 +346,6 @@ function NoteEditor({ note, projectId, featureId, teamMemberId, projects, featur
   const [error, setError] = useState(null);
   const [localFeatures, setLocalFeatures] = useState(features);
 
-  // Load features when project changes
   useEffect(() => {
     if (form.project_id) {
       api.get(`/projects/${form.project_id}/features`)
@@ -385,11 +395,11 @@ function NoteEditor({ note, projectId, featureId, teamMemberId, projects, featur
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-semibold text-gray-900">{isEdit ? 'Edit Note' : 'New Note'}</h4>
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit Note' : 'New Note'}</h3>
         <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
-          <X size={18} />
+          <X size={20} />
         </button>
       </div>
 
@@ -397,8 +407,7 @@ function NoteEditor({ note, projectId, featureId, teamMemberId, projects, featur
         <div className="mb-3 p-2 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-3">
-        {/* Category */}
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
           <select
@@ -413,7 +422,6 @@ function NoteEditor({ note, projectId, featureId, teamMemberId, projects, featur
           </select>
         </div>
 
-        {/* Content */}
         <div>
           <label className="text-xs font-medium text-gray-600 mb-1 block">Content *</label>
           <TiptapEditor
@@ -423,7 +431,6 @@ function NoteEditor({ note, projectId, featureId, teamMemberId, projects, featur
           />
         </div>
 
-        {/* Link dropdowns — only show when not pre-set by props */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {!projectId && (
             <div>
@@ -478,19 +485,18 @@ function NoteEditor({ note, projectId, featureId, teamMemberId, projects, featur
           )}
         </div>
 
-        {/* Actions */}
-        <div className="flex justify-end gap-2 pt-1">
+        <div className="flex justify-end gap-2 pt-2">
           <button
             type="button"
             onClick={onCancel}
-            className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
             {submitting ? 'Saving...' : isEdit ? 'Save Changes' : 'Save Note'}
           </button>

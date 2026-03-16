@@ -81,6 +81,9 @@ export default function ProjectDetailPage() {
   const [showAddFeature, setShowAddFeature] = useState(false);
   const [editingFeature, setEditingFeature] = useState(null);
   const [deletingFeature, setDeletingFeature] = useState(null);
+  const [editingStory, setEditingStory] = useState(null);
+  const [deletingStory, setDeletingStory] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
 
   // Inline editing
   const [editingField, setEditingField] = useState(null);
@@ -109,6 +112,7 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     loadProject();
+    api.get('/team').then(setTeamMembers).catch(() => {});
   }, [id]);
 
   async function toggleFeature(featureId) {
@@ -145,6 +149,36 @@ export default function ProjectDetailPage() {
       navigate('/projects');
     } catch {
       toast.error('Failed to delete project');
+    }
+  }
+
+  async function handleUpdateStory(storyId, data) {
+    try {
+      const updated = await api.put(`/stories/${storyId}`, data);
+      // Refresh stories for the feature
+      const featureId = updated.feature_id;
+      const stories = await api.get(`/features/${featureId}/stories`);
+      setFeatureStories(prev => ({ ...prev, [featureId]: stories }));
+      setEditingStory(null);
+      toast.success('Story updated');
+      loadProject();
+    } catch {
+      toast.error('Failed to update story');
+    }
+  }
+
+  async function handleDeleteStory(story) {
+    try {
+      await api.del(`/stories/${story.id}`);
+      setFeatureStories(prev => ({
+        ...prev,
+        [story.feature_id]: (prev[story.feature_id] || []).filter(s => s.id !== story.id),
+      }));
+      setDeletingStory(null);
+      toast.success('Story deleted');
+      loadProject();
+    } catch {
+      toast.error('Failed to delete story');
     }
   }
 
@@ -375,6 +409,8 @@ export default function ProjectDetailPage() {
                     onToggle={() => toggleFeature(feature.id)}
                     onEdit={() => { setEditingFeature(feature); setShowAddFeature(true); }}
                     onDelete={() => setDeletingFeature(feature)}
+                    onEditStory={setEditingStory}
+                    onDeleteStory={setDeletingStory}
                   />
                 );
               })}
@@ -391,7 +427,7 @@ export default function ProjectDetailPage() {
       {/* Notes Section */}
       <div className="mt-8">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Notes</h2>
-        <NotesPanel projectId={id} showSearch={false} />
+        <NotesPanel projectId={id} />
       </div>
 
       {/* Edit Project Modal */}
@@ -433,6 +469,27 @@ export default function ProjectDetailPage() {
           onSaved={() => { setShowAddFeature(false); setEditingFeature(null); loadProject(); }}
         />
       )}
+
+      {/* Edit Story Modal */}
+      {editingStory && (
+        <StoryEditModal
+          story={editingStory}
+          teamMembers={teamMembers}
+          onClose={() => setEditingStory(null)}
+          onSave={handleUpdateStory}
+        />
+      )}
+
+      {/* Delete Story Confirmation */}
+      {deletingStory && (
+        <ConfirmDialog
+          title="Delete Story"
+          message={`Are you sure you want to delete "${deletingStory.key} — ${deletingStory.summary}"? This action cannot be undone.`}
+          confirmLabel="Delete Story"
+          onConfirm={() => handleDeleteStory(deletingStory)}
+          onCancel={() => setDeletingStory(null)}
+        />
+      )}
     </div>
   );
 }
@@ -456,7 +513,7 @@ function StatCard({ icon, label, value, color }) {
   );
 }
 
-function FeatureRow({ feature, isExpanded, progress, stories, isLoadingStories, onToggle, onEdit, onDelete }) {
+function FeatureRow({ feature, isExpanded, progress, stories, isLoadingStories, onToggle, onEdit, onDelete, onEditStory, onDeleteStory }) {
   return (
     <>
       <tr className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${isExpanded ? 'bg-gray-50' : ''}`}>
@@ -550,6 +607,7 @@ function FeatureRow({ feature, isExpanded, progress, stories, isLoadingStories, 
                         <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2">Points</th>
                         <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2">Release</th>
                         <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2">Carry-overs</th>
+                        <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -579,6 +637,24 @@ function FeatureRow({ feature, isExpanded, progress, stories, isLoadingStories, 
                             ) : (
                               <span className="text-xs text-gray-400">0</span>
                             )}
+                          </td>
+                          <td className="py-2 pr-4 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => onEditStory(story)}
+                                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                title="Edit story"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                              <button
+                                onClick={() => onDeleteStory(story)}
+                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                title="Delete story"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -759,6 +835,148 @@ function FeatureModal({ projectId, feature, onClose, onSaved }) {
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
               {submitting ? 'Saving…' : (isEdit ? 'Save Changes' : 'Add Feature')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function StoryEditModal({ story, teamMembers, onClose, onSave }) {
+  const [form, setForm] = useState({
+    summary: story.summary || '',
+    sprint: story.sprint || '',
+    status: story.status || '',
+    assignee_id: story.assignee_id || '',
+    story_points: story.story_points ?? '',
+    release_date: story.release_date || '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  function handleChange(e) {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSubmitting(true);
+    await onSave(story.id, {
+      ...form,
+      assignee_id: form.assignee_id ? Number(form.assignee_id) : null,
+      story_points: form.story_points !== '' ? Number(form.story_points) : null,
+      release_date: form.release_date || null,
+    });
+    setSubmitting(false);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-gray-900">Edit Story</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="mb-4 text-xs font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block">
+          {story.key}
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Summary *</label>
+            <input
+              name="summary"
+              value={form.summary}
+              onChange={handleChange}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                name="status"
+                value={form.status}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              >
+                <option value="">—</option>
+                <option value="To Do">To Do</option>
+                <option value="In Progress">In Progress</option>
+                <option value="In Review">In Review</option>
+                <option value="Done">Done</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Points</label>
+              <input
+                name="story_points"
+                type="number"
+                min="0"
+                value={form.story_points}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sprint</label>
+              <input
+                name="sprint"
+                value={form.sprint}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Assignee</label>
+              <select
+                name="assignee_id"
+                value={form.assignee_id}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              >
+                <option value="">Unassigned</option>
+                {teamMembers.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Release Date</label>
+            <input
+              type="date"
+              name="release_date"
+              value={form.release_date}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {submitting ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
         </form>
