@@ -427,7 +427,7 @@ export default function ProjectDetailPage() {
       {/* Notes Section */}
       <div className="mt-8">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Notes</h2>
-        <NotesPanel projectId={id} showSearch={false} />
+        <NotesPanel projectId={id} />
       </div>
 
       {/* Edit Project Modal */}
