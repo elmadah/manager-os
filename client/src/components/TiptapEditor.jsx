@@ -1,4 +1,4 @@
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -7,6 +7,8 @@ import {
   Bold, Italic, Strikethrough, Code, List, ListOrdered,
   Heading1, Heading2, Quote, Minus, ImagePlus, Undo, Redo,
 } from 'lucide-react';
+import { createSlashCommands } from './SlashCommands';
+import { DragHandle } from './DragHandle';
 import './TiptapEditor.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
@@ -14,17 +16,9 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 export default function TiptapEditor({ content, onChange, placeholder = 'Write your note...' }) {
   const fileInputRef = useRef(null);
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Image.configure({ inline: false, allowBase64: false }),
-      Placeholder.configure({ placeholder }),
-    ],
-    content: content || '',
-    onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
-    },
-  });
+  const triggerImageUpload = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
 
   const uploadImage = useCallback(async (file) => {
     const formData = new FormData();
@@ -37,6 +31,20 @@ export default function TiptapEditor({ content, onChange, placeholder = 'Write y
     const { url } = await res.json();
     return url;
   }, []);
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Image.configure({ inline: false, allowBase64: false }),
+      Placeholder.configure({ placeholder: 'Type / for commands...' }),
+      createSlashCommands(triggerImageUpload),
+      DragHandle,
+    ],
+    content: content || '',
+    onUpdate: ({ editor }) => {
+      onChange(editor.getHTML());
+    },
+  });
 
   const handleImageUpload = useCallback(async () => {
     fileInputRef.current?.click();
@@ -82,7 +90,58 @@ export default function TiptapEditor({ content, onChange, placeholder = 'Write y
 
   return (
     <div className="tiptap-editor border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
-      {/* Toolbar */}
+      {/* Floating Bubble Menu — appears on text selection */}
+      <BubbleMenu
+        editor={editor}
+        tippyOptions={{ duration: 150 }}
+        className="bubble-menu"
+      >
+        <ToolbarBtn
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          active={editor.isActive('bold')}
+          title="Bold"
+        >
+          <Bold size={14} />
+        </ToolbarBtn>
+        <ToolbarBtn
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          active={editor.isActive('italic')}
+          title="Italic"
+        >
+          <Italic size={14} />
+        </ToolbarBtn>
+        <ToolbarBtn
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          active={editor.isActive('strike')}
+          title="Strikethrough"
+        >
+          <Strikethrough size={14} />
+        </ToolbarBtn>
+        <ToolbarBtn
+          onClick={() => editor.chain().focus().toggleCode().run()}
+          active={editor.isActive('code')}
+          title="Code"
+        >
+          <Code size={14} />
+        </ToolbarBtn>
+        <div className="w-px h-5 bg-gray-500/30 mx-0.5" />
+        <ToolbarBtn
+          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+          active={editor.isActive('heading', { level: 1 })}
+          title="Heading 1"
+        >
+          <Heading1 size={14} />
+        </ToolbarBtn>
+        <ToolbarBtn
+          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          active={editor.isActive('heading', { level: 2 })}
+          title="Heading 2"
+        >
+          <Heading2 size={14} />
+        </ToolbarBtn>
+      </BubbleMenu>
+
+      {/* Static Toolbar */}
       <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-gray-200 bg-gray-50 flex-wrap">
         <ToolbarBtn
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -185,7 +244,7 @@ export default function TiptapEditor({ content, onChange, placeholder = 'Write y
       </div>
 
       {/* Editor */}
-      <div className="prose prose-sm max-w-none">
+      <div className="prose prose-sm max-w-none relative">
         <EditorContent editor={editor} />
       </div>
 

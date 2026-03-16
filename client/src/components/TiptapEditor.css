@@ -2,6 +2,7 @@
   outline: none;
   min-height: 120px;
   padding: 0.75rem;
+  padding-left: 1.75rem;
 }
 
 .tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
@@ -23,4 +24,72 @@
 .tiptap-editor .ProseMirror img.ProseMirror-selectednode {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
+}
+
+/* Bubble Menu (floating toolbar on selection) */
+.bubble-menu {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: #1f2937;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.bubble-menu button {
+  color: #d1d5db;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+
+.bubble-menu button:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.bubble-menu button.bg-blue-100 {
+  color: #60a5fa !important;
+  background: rgba(96, 165, 250, 0.15) !important;
+}
+
+/* Drag Handle */
+.drag-handle {
+  position: absolute;
+  left: -22px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  cursor: grab;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  z-index: 10;
+  user-select: none;
+}
+
+.drag-handle:hover {
+  color: #6b7280;
+  background: #f3f4f6;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  color: #3b82f6;
+  background: #eff6ff;
+}
+
+/* Drop cursor styling */
+.ProseMirror-dropcursor {
+  border-color: #3b82f6 !important;
+  border-width: 2px !important;
 }
