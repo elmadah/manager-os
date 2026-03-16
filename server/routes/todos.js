@@ -33,10 +33,32 @@ router.get('/', (req, res) => {
       sql += " AND t.due_date < date('now') AND t.is_complete = 0";
     }
 
-    sql += ' ORDER BY t.due_date ASC';
+    if (req.query.project_id) {
+      sql += ' AND t.project_id = ?';
+      params.push(Number(req.query.project_id));
+    }
+
+    sql += ' ORDER BY t.sort_order ASC, t.due_date ASC';
 
     const todos = db.prepare(sql).all(...params);
     res.json(todos);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/todos/reorder
+router.put('/reorder', (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) return res.status(400).json({ error: 'orderedIds array required' });
+
+    const update = db.prepare('UPDATE todos SET sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+    orderedIds.forEach((id, index) => {
+      update.run(index, id);
+    });
+
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

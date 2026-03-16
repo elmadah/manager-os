@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Plus, CheckSquare, Square, Calendar, Pencil, Trash2, X,
-  AlertCircle, ArrowUpDown, ListTodo,
+  AlertCircle, ArrowUpDown, ListTodo, GripVertical,
 } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import api from '../lib/api';
 import { useToast } from '../components/ToastProvider';
 
@@ -43,10 +44,15 @@ export default function TodosPage() {
   const [editingTodo, setEditingTodo] = useState(null);
   const [statusFilter, setStatusFilter] = useState('active');
   const [priorityFilter, setPriorityFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('due_date');
+  const [sortBy, setSortBy] = useState('manual');
   const [editingTitleId, setEditingTitleId] = useState(null);
   const [editingTitleVal, setEditingTitleVal] = useState('');
   const titleInputRef = useRef(null);
+  const [inlineTitle, setInlineTitle] = useState('');
+  const [inlinePriority, setInlinePriority] = useState('medium');
+  const [inlineDueDate, setInlineDueDate] = useState('');
+  const [inlineSubmitting, setInlineSubmitting] = useState(false);
+  const inlineInputRef = useRef(null);
 
   async function loadTodos() {
     try {
@@ -55,7 +61,7 @@ export default function TodosPage() {
       if (priorityFilter !== 'all') params.set('priority', priorityFilter);
       const qs = params.toString();
       const data = await api.get(`/todos${qs ? `?${qs}` : ''}`);
-      setTodos(sortTodos(data, sortBy));
+      setTodos(sortBy === 'manual' ? data : sortTodos(data, sortBy));
     } catch (err) {
       console.error('Failed to load todos:', err);
     } finally {
@@ -68,7 +74,11 @@ export default function TodosPage() {
   }, [statusFilter, priorityFilter]);
 
   useEffect(() => {
-    setTodos((prev) => sortTodos([...prev], sortBy));
+    if (sortBy === 'manual') {
+      loadTodos();
+    } else {
+      setTodos((prev) => sortTodos([...prev], sortBy));
+    }
   }, [sortBy]);
 
   useEffect(() => {
@@ -103,6 +113,24 @@ export default function TodosPage() {
       return 0;
     });
     return sorted;
+  }
+
+  async function handleDragEnd(result) {
+    if (!result.destination) return;
+    const srcIdx = result.source.index;
+    const destIdx = result.destination.index;
+    if (srcIdx === destIdx) return;
+
+    const reordered = Array.from(todos);
+    const [moved] = reordered.splice(srcIdx, 1);
+    reordered.splice(destIdx, 0, moved);
+    setTodos(reordered);
+
+    try {
+      await api.put('/todos/reorder', { orderedIds: reordered.map((t) => t.id) });
+    } catch {
+      loadTodos();
+    }
   }
 
   async function toggleTodo(todo) {
@@ -145,6 +173,30 @@ export default function TodosPage() {
     }
   }
 
+  async function handleInlineAdd(e) {
+    e.preventDefault();
+    const trimmed = inlineTitle.trim();
+    if (!trimmed) return;
+    setInlineSubmitting(true);
+    try {
+      await api.post('/todos', {
+        title: trimmed,
+        priority: inlinePriority,
+        due_date: inlineDueDate || null,
+      });
+      setInlineTitle('');
+      setInlinePriority('medium');
+      setInlineDueDate('');
+      toast.success('Todo created');
+      loadTodos();
+      setTimeout(() => inlineInputRef.current?.focus(), 50);
+    } catch {
+      toast.error('Failed to add todo');
+    } finally {
+      setInlineSubmitting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -153,18 +205,13 @@ export default function TodosPage() {
     );
   }
 
+  const isDragEnabled = sortBy === 'manual';
+
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">My To-Dos</h1>
-        <button
-          onClick={() => { setEditingTodo(null); setShowAddModal(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={16} />
-          Add Todo
-        </button>
       </div>
 
       {/* Filter bar */}
@@ -204,6 +251,7 @@ export default function TodosPage() {
             onChange={(e) => setSortBy(e.target.value)}
             className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
           >
+            <option value="manual">Manual (drag & drop)</option>
             <option value="due_date">Due date</option>
             <option value="priority">Priority</option>
             <option value="created_at">Created date</option>
@@ -211,124 +259,184 @@ export default function TodosPage() {
         </div>
       </div>
 
+      {/* Inline Add */}
+      <form onSubmit={handleInlineAdd} className="flex items-center gap-2 mb-4">
+        <Plus size={16} className="text-gray-400 shrink-0" />
+        <input
+          ref={inlineInputRef}
+          value={inlineTitle}
+          onChange={(e) => setInlineTitle(e.target.value)}
+          placeholder="Add a to-do…"
+          className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-gray-50 focus:bg-white transition-colors"
+        />
+        <select
+          value={inlinePriority}
+          onChange={(e) => setInlinePriority(e.target.value)}
+          className="px-2 py-2 text-xs border border-gray-200 rounded-lg outline-none bg-gray-50"
+        >
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <input
+          type="date"
+          value={inlineDueDate}
+          onChange={(e) => setInlineDueDate(e.target.value)}
+          className="px-2 py-2 text-xs border border-gray-200 rounded-lg outline-none bg-gray-50"
+        />
+        <button
+          type="submit"
+          disabled={inlineSubmitting || !inlineTitle.trim()}
+          className="px-3 py-2 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 shrink-0"
+        >
+          {inlineSubmitting ? 'Adding…' : 'Add'}
+        </button>
+      </form>
+
       {/* Todo list */}
       {todos.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-xl border border-gray-200">
           <ListTodo size={48} className="mx-auto text-gray-300 mb-4" />
           <h2 className="text-lg font-semibold text-gray-700 mb-2">No to-dos yet</h2>
-          <p className="text-gray-500 mb-6">Create your first to-do to start tracking tasks.</p>
-          <button
-            onClick={() => { setEditingTodo(null); setShowAddModal(true); }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={16} />
-            Add your first to-do
-          </button>
+          <p className="text-gray-500">Use the form above to add your first to-do.</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {todos.map((todo) => {
-            const dueStatus = dueDateStatus(todo.due_date);
-            const isOverdue = !todo.is_complete && dueStatus === 'overdue';
-
-            return (
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <Droppable droppableId="todos-list">
+            {(provided) => (
               <div
-                key={todo.id}
-                className={`group bg-white rounded-lg border border-gray-200 px-4 py-3 hover:shadow-sm transition-all ${
-                  isOverdue ? 'border-l-4 border-l-red-500' : ''
-                } ${todo.is_complete ? 'opacity-60' : ''}`}
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                className="space-y-2"
               >
-                <div className="flex items-start gap-3">
-                  {/* Checkbox */}
-                  <button
-                    onClick={() => toggleTodo(todo)}
-                    className="mt-0.5 shrink-0 text-gray-400 hover:text-blue-600 transition-colors"
-                  >
-                    {todo.is_complete ? (
-                      <CheckSquare size={20} className="text-green-500" />
-                    ) : (
-                      <Square size={20} />
-                    )}
-                  </button>
+                {todos.map((todo, index) => {
+                  const dueStatus = dueDateStatus(todo.due_date);
+                  const isOverdue = !todo.is_complete && dueStatus === 'overdue';
 
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      {editingTitleId === todo.id ? (
-                        <input
-                          ref={titleInputRef}
-                          value={editingTitleVal}
-                          onChange={(e) => setEditingTitleVal(e.target.value)}
-                          onBlur={() => saveInlineTitle(todo.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveInlineTitle(todo.id);
-                            if (e.key === 'Escape') setEditingTitleId(null);
-                          }}
-                          className="font-semibold text-gray-900 bg-blue-50 border border-blue-300 rounded px-1.5 py-0.5 outline-none focus:ring-2 focus:ring-blue-500 flex-1"
-                        />
-                      ) : (
-                        <span
-                          onClick={() => {
-                            setEditingTitleId(todo.id);
-                            setEditingTitleVal(todo.title);
-                          }}
-                          className={`font-semibold cursor-text ${
-                            todo.is_complete ? 'line-through text-gray-400' : 'text-gray-900'
+                  return (
+                    <Draggable
+                      key={todo.id}
+                      draggableId={String(todo.id)}
+                      index={index}
+                      isDragDisabled={!isDragEnabled}
+                    >
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`group bg-white rounded-lg border border-gray-200 px-4 py-3 hover:shadow-sm transition-all ${
+                            isOverdue ? 'border-l-4 border-l-red-500' : ''
+                          } ${todo.is_complete ? 'opacity-60' : ''} ${
+                            snapshot.isDragging ? 'shadow-lg rotate-1' : ''
                           }`}
                         >
-                          {todo.title}
-                        </span>
-                      )}
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${PRIORITY_STYLES[todo.priority] || PRIORITY_STYLES.medium}`}>
-                        {todo.priority}
-                      </span>
-                    </div>
+                          <div className="flex items-start gap-3">
+                            {/* Drag handle */}
+                            {isDragEnabled && (
+                              <div
+                                {...provided.dragHandleProps}
+                                className="mt-0.5 shrink-0 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing"
+                              >
+                                <GripVertical size={16} />
+                              </div>
+                            )}
 
-                    {todo.description && (
-                      <p className="text-sm text-gray-500 mt-0.5 truncate">{todo.description}</p>
-                    )}
+                            {/* Checkbox */}
+                            <button
+                              onClick={() => toggleTodo(todo)}
+                              className="mt-0.5 shrink-0 text-gray-400 hover:text-blue-600 transition-colors"
+                            >
+                              {todo.is_complete ? (
+                                <CheckSquare size={20} className="text-green-500" />
+                              ) : (
+                                <Square size={20} />
+                              )}
+                            </button>
 
-                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                      {todo.due_date && (
-                        <span className={`flex items-center gap-1 text-xs ${todo.is_complete ? 'text-gray-400' : DUE_COLORS[dueStatus]}`}>
-                          <Calendar size={12} />
-                          {formatDate(todo.due_date)}
-                          {isOverdue && <AlertCircle size={12} />}
-                        </span>
-                      )}
-                      {todo.project_name && (
-                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
-                          {todo.project_name}
-                        </span>
-                      )}
-                      {todo.team_member_name && (
-                        <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
-                          {todo.team_member_name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                            {/* Content */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                {editingTitleId === todo.id ? (
+                                  <input
+                                    ref={titleInputRef}
+                                    value={editingTitleVal}
+                                    onChange={(e) => setEditingTitleVal(e.target.value)}
+                                    onBlur={() => saveInlineTitle(todo.id)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') saveInlineTitle(todo.id);
+                                      if (e.key === 'Escape') setEditingTitleId(null);
+                                    }}
+                                    className="font-semibold text-gray-900 bg-blue-50 border border-blue-300 rounded px-1.5 py-0.5 outline-none focus:ring-2 focus:ring-blue-500 flex-1"
+                                  />
+                                ) : (
+                                  <span
+                                    onClick={() => {
+                                      setEditingTitleId(todo.id);
+                                      setEditingTitleVal(todo.title);
+                                    }}
+                                    className={`font-semibold cursor-text ${
+                                      todo.is_complete ? 'line-through text-gray-400' : 'text-gray-900'
+                                    }`}
+                                  >
+                                    {todo.title}
+                                  </span>
+                                )}
+                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${PRIORITY_STYLES[todo.priority] || PRIORITY_STYLES.medium}`}>
+                                  {todo.priority}
+                                </span>
+                              </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                    <button
-                      onClick={() => { setEditingTodo(todo); setShowAddModal(true); }}
-                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => deleteTodo(todo.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
+                              {todo.description && (
+                                <p className="text-sm text-gray-500 mt-0.5 truncate">{todo.description}</p>
+                              )}
+
+                              <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                                {todo.due_date && (
+                                  <span className={`flex items-center gap-1 text-xs ${todo.is_complete ? 'text-gray-400' : DUE_COLORS[dueStatus]}`}>
+                                    <Calendar size={12} />
+                                    {formatDate(todo.due_date)}
+                                    {isOverdue && <AlertCircle size={12} />}
+                                  </span>
+                                )}
+                                {todo.project_name && (
+                                  <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                                    {todo.project_name}
+                                  </span>
+                                )}
+                                {todo.team_member_name && (
+                                  <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+                                    {todo.team_member_name}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                              <button
+                                onClick={() => { setEditingTodo(todo); setShowAddModal(true); }}
+                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                onClick={() => deleteTodo(todo.id)}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </Draggable>
+                  );
+                })}
+                {provided.placeholder}
               </div>
-            );
-          })}
-        </div>
+            )}
+          </Droppable>
+        </DragDropContext>
       )}
 
       {/* Add/Edit Modal */}
