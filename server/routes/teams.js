@@ -7,7 +7,7 @@ router.get('/', (req, res) => {
   try {
     const teams = db.prepare(`
       SELECT t.*,
-        (SELECT COUNT(*) FROM team_members WHERE team_id = t.id) AS member_count,
+        (SELECT COUNT(*) FROM team_member_assignments WHERE team_id = t.id) AS member_count,
         (SELECT COUNT(*) FROM jira_boards WHERE team_id = t.id) AS board_count,
         (SELECT COUNT(*) FROM projects WHERE team_id = t.id) AS project_count
       FROM teams t
@@ -25,7 +25,7 @@ router.get('/:id', (req, res) => {
     const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(Number(req.params.id));
     if (!team) return res.status(404).json({ error: 'Team not found' });
 
-    const members = db.prepare('SELECT id FROM team_members WHERE team_id = ?').all(Number(req.params.id));
+    const members = db.prepare('SELECT member_id AS id FROM team_member_assignments WHERE team_id = ?').all(Number(req.params.id));
     const boards = db.prepare('SELECT id FROM jira_boards WHERE team_id = ?').all(Number(req.params.id));
     const projects = db.prepare('SELECT id FROM projects WHERE team_id = ?').all(Number(req.params.id));
 
@@ -77,9 +77,9 @@ router.put('/:id/assignments', (req, res) => {
     const { member_ids = [], board_ids = [], project_ids = [] } = req.body;
 
     const assign = db.transaction(() => {
-      db.prepare('UPDATE team_members SET team_id = NULL WHERE team_id = ?').run(teamId);
+      db.prepare('DELETE FROM team_member_assignments WHERE team_id = ?').run(teamId);
       for (const id of member_ids) {
-        db.prepare('UPDATE team_members SET team_id = ? WHERE id = ?').run(teamId, id);
+        db.prepare('INSERT OR IGNORE INTO team_member_assignments (team_id, member_id) VALUES (?, ?)').run(teamId, id);
       }
 
       db.prepare('UPDATE jira_boards SET team_id = NULL WHERE team_id = ?').run(teamId);
@@ -108,7 +108,7 @@ router.delete('/:id', (req, res) => {
     if (!team) return res.status(404).json({ error: 'Team not found' });
 
     const remove = db.transaction(() => {
-      db.prepare('UPDATE team_members SET team_id = NULL WHERE team_id = ?').run(teamId);
+      db.prepare('DELETE FROM team_member_assignments WHERE team_id = ?').run(teamId);
       db.prepare('UPDATE jira_boards SET team_id = NULL WHERE team_id = ?').run(teamId);
       db.prepare('UPDATE projects SET team_id = NULL WHERE team_id = ?').run(teamId);
       db.prepare('DELETE FROM teams WHERE id = ?').run(teamId);

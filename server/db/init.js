@@ -83,6 +83,18 @@ const db = {
     migrate('jira_boards', 'team_id', 'INTEGER REFERENCES teams(id)');
     migrate('projects', 'team_id', 'INTEGER REFERENCES teams(id)');
 
+    // Migrate team_members.team_id data into junction table
+    const existing = sqlDb.exec(
+      `SELECT id, team_id FROM team_members WHERE team_id IS NOT NULL`
+    );
+    if (existing.length && existing[0].values.length) {
+      for (const [memberId, teamId] of existing[0].values) {
+        sqlDb.exec(
+          `INSERT OR IGNORE INTO team_member_assignments (team_id, member_id) VALUES (${teamId}, ${memberId})`
+        );
+      }
+    }
+
     save();
     return db;
   },
