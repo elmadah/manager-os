@@ -537,9 +537,6 @@ export default function SettingsPage() {
                       <div className="flex flex-wrap gap-2">
                         {allMembers.map(m => {
                           const assigned = editAssignments.member_ids.includes(m.id);
-                          const otherTeam = !assigned && m.team_id && m.team_id !== team.id
-                            ? teams.find(t => t.id === m.team_id)
-                            : null;
                           return (
                             <button
                               key={m.id}
@@ -551,7 +548,6 @@ export default function SettingsPage() {
                               }`}
                             >
                               {m.name}
-                              {otherTeam && <span className="ml-1 text-gray-400">({otherTeam.name})</span>}
                             </button>
                           );
                         })}

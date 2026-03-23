@@ -113,6 +113,12 @@ CREATE TABLE IF NOT EXISTS teams (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS team_member_assignments (
+  team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  member_id INTEGER NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  PRIMARY KEY (team_id, member_id)
+);
+
 CREATE TABLE IF NOT EXISTS jira_settings (
   id TEXT PRIMARY KEY DEFAULT 'default',
   base_url TEXT NOT NULL,
