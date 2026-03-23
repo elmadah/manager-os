@@ -10,6 +10,7 @@ import {
   Upload,
   Newspaper,
   Download,
+  Settings,
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
@@ -75,7 +76,20 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-3 py-4 border-t border-slate-700">
+        <div className="px-3 py-4 border-t border-slate-700 space-y-1">
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-slate-700 text-white'
+                  : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+              }`
+            }
+          >
+            <Settings className="h-5 w-5" />
+            Settings
+          </NavLink>
           <button
             onClick={handleExport}
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-700/50 hover:text-white transition-colors w-full"

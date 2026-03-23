@@ -11,6 +11,7 @@ import BlockersPage from './pages/BlockersPage';
 import ImportPage from './pages/ImportPage';
 import NotesPage from './pages/NotesPage';
 import DigestPage from './pages/DigestPage';
+import SettingsPage from './pages/SettingsPage';
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/notes" element={<NotesPage />} />
           <Route path="/digest" element={<DigestPage />} />
           <Route path="/import" element={<ImportPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

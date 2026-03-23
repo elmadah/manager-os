@@ -106,3 +106,26 @@ CREATE TABLE IF NOT EXISTS one_on_ones (
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS jira_settings (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  base_url TEXT NOT NULL,
+  pat_token TEXT NOT NULL,
+  story_points_field TEXT DEFAULT 'customfield_10026',
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS jira_boards (
+  id TEXT PRIMARY KEY,
+  board_id INTEGER NOT NULL,
+  label TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS jira_project_mappings (
+  id TEXT PRIMARY KEY,
+  jira_project_key TEXT NOT NULL,
+  project_id INTEGER NOT NULL REFERENCES projects(id),
+  UNIQUE(jira_project_key)
+);

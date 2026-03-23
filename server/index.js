@@ -26,6 +26,7 @@ const digestRouter = require('./routes/digest');
 const backupRouter = require('./routes/backup');
 const timelineRouter = require('./routes/timeline');
 const uploadsRouter = require('./routes/uploads');
+const jiraSettingsRouter = require('./routes/jiraSettings');
 
 app.use('/api/projects', projectsRouter);
 app.use('/api', featuresRouter);
@@ -41,6 +42,7 @@ app.use('/api', backupRouter);
 app.use('/api/timeline', timelineRouter);
 app.use('/api/uploads', express.static(path.join(__dirname, '../data/uploads')));
 app.use('/api/uploads', uploadsRouter);
+app.use('/api/settings/jira', jiraSettingsRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

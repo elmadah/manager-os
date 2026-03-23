@@ -71,6 +71,13 @@ const db = {
     migrate('features', 'target_date', 'TEXT');
     migrate('todos', 'sort_order', 'INTEGER DEFAULT 0');
 
+    // Jira integration migrations
+    migrate('stories', 'jira_board_id', 'TEXT REFERENCES jira_boards(id)');
+    migrate('stories', 'epic_key', 'TEXT');
+    migrate('stories', 'epic_name', 'TEXT');
+    migrate('stories', 'issue_type', 'TEXT');
+    migrate('stories', 'last_synced_at', 'TEXT');
+
     save();
     return db;
   },
