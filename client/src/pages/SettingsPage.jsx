@@ -36,8 +36,20 @@ export default function SettingsPage() {
   // Sync modal state
   const [syncBoard, setSyncBoard] = useState(null);
 
+  // Teams state
+  const [teams, setTeams] = useState([]);
+  const [allMembers, setAllMembers] = useState([]);
+  const [allProjects, setAllProjects] = useState([]);
+  const [showAddTeam, setShowAddTeam] = useState(false);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [addingTeam, setAddingTeam] = useState(false);
+  const [editingTeam, setEditingTeam] = useState(null);
+  const [editAssignments, setEditAssignments] = useState({ member_ids: [], board_ids: [], project_ids: [] });
+  const [savingAssignments, setSavingAssignments] = useState(false);
+
   useEffect(() => {
     loadSettings();
+    loadTeams();
   }, []);
 
   async function loadSettings() {
@@ -120,6 +132,90 @@ export default function SettingsPage() {
     } catch (err) {
       toast.error(err.data?.error || 'Failed to remove board');
     }
+  }
+
+  async function loadTeams() {
+    try {
+      const [teamsData, membersData, projectsData] = await Promise.all([
+        api.get('/teams'),
+        api.get('/team'),
+        api.get('/projects'),
+      ]);
+      setTeams(teamsData);
+      setAllMembers(membersData);
+      setAllProjects(projectsData);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleAddTeam() {
+    if (!newTeamName.trim()) return;
+    setAddingTeam(true);
+    try {
+      const team = await api.post('/teams', { name: newTeamName.trim() });
+      setTeams(prev => [...prev, { ...team, member_count: 0, board_count: 0, project_count: 0 }]);
+      setNewTeamName('');
+      setShowAddTeam(false);
+      toast.success('Team created');
+    } catch (err) {
+      toast.error(err.data?.error || 'Failed to create team');
+    } finally {
+      setAddingTeam(false);
+    }
+  }
+
+  async function handleDeleteTeam(id) {
+    try {
+      await api.del(`/teams/${id}`);
+      setTeams(prev => prev.filter(t => t.id !== id));
+      if (editingTeam === id) setEditingTeam(null);
+      toast.success('Team deleted');
+    } catch (err) {
+      toast.error(err.data?.error || 'Failed to delete team');
+    }
+  }
+
+  async function handleEditTeam(id) {
+    if (editingTeam === id) {
+      setEditingTeam(null);
+      return;
+    }
+    try {
+      const data = await api.get(`/teams/${id}`);
+      setEditAssignments({
+        member_ids: data.member_ids || [],
+        board_ids: data.board_ids || [],
+        project_ids: data.project_ids || [],
+      });
+      setEditingTeam(id);
+    } catch {
+      toast.error('Failed to load team details');
+    }
+  }
+
+  async function handleSaveAssignments() {
+    setSavingAssignments(true);
+    try {
+      await api.put(`/teams/${editingTeam}/assignments`, editAssignments);
+      toast.success('Assignments saved');
+      await loadTeams();
+      setEditingTeam(null);
+    } catch (err) {
+      toast.error(err.data?.error || 'Failed to save assignments');
+    } finally {
+      setSavingAssignments(false);
+    }
+  }
+
+  function toggleAssignment(type, id) {
+    setEditAssignments(prev => {
+      const current = prev[type];
+      return {
+        ...prev,
+        [type]: current.includes(id) ? current.filter(x => x !== id) : [...current, id],
+      };
+    });
   }
 
   if (loading) {
@@ -352,6 +448,188 @@ export default function SettingsPage() {
               No boards registered yet. Add a board to start syncing sprints.
             </p>
           )
+        )}
+      </div>
+
+      {/* Teams */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Teams</h2>
+            <p className="text-sm text-gray-500">Group members, boards, and projects into teams</p>
+          </div>
+          <button
+            onClick={() => setShowAddTeam(true)}
+            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            Add Team
+          </button>
+        </div>
+
+        {showAddTeam && (
+          <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Team Name</label>
+                <input
+                  type="text"
+                  value={newTeamName}
+                  onChange={(e) => setNewTeamName(e.target.value)}
+                  placeholder="e.g. Mobile Team"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  autoFocus
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddTeam()}
+                />
+              </div>
+              <button
+                onClick={handleAddTeam}
+                disabled={addingTeam || !newTeamName.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
+              >
+                {addingTeam ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add'}
+              </button>
+              <button
+                onClick={() => { setShowAddTeam(false); setNewTeamName(''); }}
+                className="px-2 py-2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {teams.length > 0 ? (
+          <div className="divide-y divide-gray-100">
+            {teams.map((team) => (
+              <div key={team.id} className="py-3">
+                <div className="flex items-center justify-between">
+                  <div className="cursor-pointer" onClick={() => handleEditTeam(team.id)}>
+                    <p className="text-sm font-medium text-gray-900">{team.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {team.member_count} members · {team.board_count} boards · {team.project_count} projects
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEditTeam(team.id)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                        editingTeam === team.id
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {editingTeam === team.id ? 'Close' : 'Edit'}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteTeam(team.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {editingTeam === team.id && (
+                  <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-2">Members</label>
+                      <div className="flex flex-wrap gap-2">
+                        {allMembers.map(m => {
+                          const assigned = editAssignments.member_ids.includes(m.id);
+                          const otherTeam = !assigned && m.team_id && m.team_id !== team.id
+                            ? teams.find(t => t.id === m.team_id)
+                            : null;
+                          return (
+                            <button
+                              key={m.id}
+                              onClick={() => toggleAssignment('member_ids', m.id)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                                assigned
+                                  ? 'bg-blue-100 border-blue-300 text-blue-700'
+                                  : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300'
+                              }`}
+                            >
+                              {m.name}
+                              {otherTeam && <span className="ml-1 text-gray-400">({otherTeam.name})</span>}
+                            </button>
+                          );
+                        })}
+                        {allMembers.length === 0 && <span className="text-xs text-gray-400">No team members yet</span>}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-2">Boards</label>
+                      <div className="flex flex-wrap gap-2">
+                        {boards.map(b => {
+                          const assigned = editAssignments.board_ids.includes(b.id);
+                          const otherTeam = !assigned && b.team_id && b.team_id !== team.id
+                            ? teams.find(t => t.id === b.team_id)
+                            : null;
+                          return (
+                            <button
+                              key={b.id}
+                              onClick={() => toggleAssignment('board_ids', b.id)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                                assigned
+                                  ? 'bg-blue-100 border-blue-300 text-blue-700'
+                                  : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300'
+                              }`}
+                            >
+                              {b.label}
+                              {otherTeam && <span className="ml-1 text-gray-400">({otherTeam.name})</span>}
+                            </button>
+                          );
+                        })}
+                        {boards.length === 0 && <span className="text-xs text-gray-400">No boards registered yet</span>}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-2">Projects</label>
+                      <div className="flex flex-wrap gap-2">
+                        {allProjects.map(p => {
+                          const assigned = editAssignments.project_ids.includes(p.id);
+                          const otherTeam = !assigned && p.team_id && p.team_id !== team.id
+                            ? teams.find(t => t.id === p.team_id)
+                            : null;
+                          return (
+                            <button
+                              key={p.id}
+                              onClick={() => toggleAssignment('project_ids', p.id)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                                assigned
+                                  ? 'bg-blue-100 border-blue-300 text-blue-700'
+                                  : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300'
+                              }`}
+                            >
+                              {p.name}
+                              {otherTeam && <span className="ml-1 text-gray-400">({otherTeam.name})</span>}
+                            </button>
+                          );
+                        })}
+                        {allProjects.length === 0 && <span className="text-xs text-gray-400">No projects yet</span>}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleSaveAssignments}
+                      disabled={savingAssignments}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {savingAssignments ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                      Save Assignments
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500 text-center py-6">
+            No teams yet. Create a team to group members, boards, and projects.
+          </p>
         )}
       </div>
 

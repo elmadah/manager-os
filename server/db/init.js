@@ -78,6 +78,11 @@ const db = {
     migrate('stories', 'issue_type', 'TEXT');
     migrate('stories', 'last_synced_at', 'TEXT');
 
+    // Teams migrations
+    migrate('team_members', 'team_id', 'INTEGER REFERENCES teams(id)');
+    migrate('jira_boards', 'team_id', 'INTEGER REFERENCES teams(id)');
+    migrate('projects', 'team_id', 'INTEGER REFERENCES teams(id)');
+
     save();
     return db;
   },

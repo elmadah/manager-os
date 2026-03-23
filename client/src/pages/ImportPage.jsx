@@ -258,7 +258,7 @@ export default function ImportPage() {
 
   const filteredPreview = preview?.filter(row => activeFilters.has(row.diff_status)) || [];
 
-  const truncate = (str, len = 60) => {
+  const truncate = (str, len = 120) => {
     if (!str) return '';
     return str.length > len ? str.slice(0, len) + '…' : str;
   };
@@ -608,7 +608,7 @@ PROJ-3,Dashboard widgets,Sprint 2,To Do,,8,`}
                   <tr className="border-b border-gray-200 bg-gray-50">
                     <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Status</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Key</th>
-                    <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Summary</th>
+                    <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3 min-w-[320px]">Summary</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Sprint</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Status</th>
                     <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Assignee</th>

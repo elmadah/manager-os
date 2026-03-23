@@ -107,6 +107,12 @@ CREATE TABLE IF NOT EXISTS one_on_ones (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS teams (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS jira_settings (
   id TEXT PRIMARY KEY DEFAULT 'default',
   base_url TEXT NOT NULL,

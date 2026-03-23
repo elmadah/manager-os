@@ -11,12 +11,23 @@ function isDone(status) {
 // GET /api/sprints — list all distinct sprints with summary stats
 router.get('/', (req, res) => {
   try {
+    const teamId = req.query.team_id ? Number(req.query.team_id) : null;
+
+    const teamFilter = teamId
+      ? `AND ssh.story_id IN (
+          SELECT s.id FROM stories s
+          JOIN jira_boards jb ON jb.id = s.jira_board_id
+          WHERE jb.team_id = ${teamId}
+        )`
+      : '';
+
     // Get distinct sprints ordered by most recent import
     const sprints = db.prepare(`
       SELECT sprint,
         MAX(imported_at) AS last_imported
-      FROM story_sprint_history
+      FROM story_sprint_history ssh
       WHERE sprint IS NOT NULL AND sprint != ''
+      ${teamFilter}
       GROUP BY sprint
       ORDER BY MAX(imported_at) DESC
     `).all();
@@ -30,7 +41,9 @@ router.get('/', (req, res) => {
         SELECT DISTINCT ssh.story_id, st.status, st.story_points, st.first_seen_sprint, st.carry_over_count
         FROM story_sprint_history ssh
         JOIN stories st ON st.id = ssh.story_id
+        ${teamId ? 'JOIN jira_boards jb ON jb.id = st.jira_board_id' : ''}
         WHERE ssh.sprint = ?
+        ${teamId ? 'AND jb.team_id = ' + teamId : ''}
       `).all(sprintName);
 
       let completed = 0;
@@ -87,6 +100,7 @@ router.get('/', (req, res) => {
 router.get('/:sprintName/stories', (req, res) => {
   try {
     const sprintName = decodeURIComponent(req.params.sprintName);
+    const teamId = req.query.team_id ? Number(req.query.team_id) : null;
 
     // Get all stories that appeared in this sprint via history
     const stories = db.prepare(`
@@ -103,7 +117,9 @@ router.get('/:sprintName/stories', (req, res) => {
       LEFT JOIN team_members tm ON tm.id = st.assignee_id
       LEFT JOIN features f ON f.id = st.feature_id
       LEFT JOIN projects p ON p.id = f.project_id
+      ${teamId ? 'JOIN jira_boards jb ON jb.id = st.jira_board_id' : ''}
       WHERE ssh.sprint = ?
+      ${teamId ? 'AND jb.team_id = ' + teamId : ''}
       GROUP BY st.id
       ORDER BY st.key
     `).all(sprintName);
