@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const https = require('https');
+const http = require('http');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db/init');
 
@@ -16,20 +18,42 @@ function maskToken(token) {
   return token.slice(0, 4) + '****' + token.slice(-4);
 }
 
-async function jiraFetch(path, settings) {
+function jiraFetch(path, settings) {
   const url = `${settings.base_url.replace(/\/+$/, '')}${path}`;
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${settings.pat_token}`,
-      Accept: 'application/json',
-    },
+  const parsed = new URL(url);
+  const transport = parsed.protocol === 'https:' ? https : http;
+
+  return new Promise((resolve, reject) => {
+    const req = transport.request(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${settings.pat_token}`,
+          Accept: 'application/json',
+        },
+        rejectUnauthorized: false,
+      },
+      (res) => {
+        let body = '';
+        res.on('data', (chunk) => (body += chunk));
+        res.on('end', () => {
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            const error = new Error(`Jira API error: ${res.statusCode} ${res.statusMessage}`);
+            error.status = res.statusCode;
+            return reject(error);
+          }
+          try {
+            resolve(JSON.parse(body));
+          } catch (e) {
+            reject(new Error('Invalid JSON response from Jira'));
+          }
+        });
+      }
+    );
+    req.on('error', reject);
+    req.end();
   });
-  if (!res.ok) {
-    const error = new Error(`Jira API error: ${res.status} ${res.statusText}`);
-    error.status = res.status;
-    throw error;
-  }
-  return res.json();
 }
 
 // ---------------------------------------------------------------------------
