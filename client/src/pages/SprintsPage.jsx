@@ -10,14 +10,24 @@ export default function SprintsPage() {
   const [loading, setLoading] = useState(true);
   const [storiesLoading, setStoriesLoading] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
+  const [teams, setTeams] = useState([]);
+  const [selectedTeamId, setSelectedTeamId] = useState('');
+
+  useEffect(() => {
+    api.get('/teams').then(setTeams).catch(() => {});
+  }, []);
 
   useEffect(() => {
     async function loadSprints() {
       try {
-        const data = await api.get('/sprints');
+        const params = selectedTeamId ? `?team_id=${selectedTeamId}` : '';
+        const data = await api.get(`/sprints${params}`);
         setSprints(data);
         if (data.length > 0) {
           setSelectedSprint(data[0]);
+        } else {
+          setSelectedSprint(null);
+          setStories([]);
         }
       } catch (err) {
         console.error('Failed to load sprints:', err);
@@ -26,14 +36,15 @@ export default function SprintsPage() {
       }
     }
     loadSprints();
-  }, []);
+  }, [selectedTeamId]);
 
   useEffect(() => {
     if (!selectedSprint) return;
     async function loadStories() {
       setStoriesLoading(true);
       try {
-        const data = await api.get(`/sprints/${encodeURIComponent(selectedSprint.sprint)}/stories`);
+        const params = selectedTeamId ? `?team_id=${selectedTeamId}` : '';
+        const data = await api.get(`/sprints/${encodeURIComponent(selectedSprint.sprint)}/stories${params}`);
         setStories(data);
       } catch (err) {
         console.error('Failed to load sprint stories:', err);
@@ -42,7 +53,7 @@ export default function SprintsPage() {
       }
     }
     loadStories();
-  }, [selectedSprint]);
+  }, [selectedSprint, selectedTeamId]);
 
   if (loading) {
     return (
@@ -78,17 +89,34 @@ export default function SprintsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Sprints</h1>
-        <button
-          onClick={() => setShowComparison(!showComparison)}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-            showComparison
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          <BarChart3 size={16} />
-          Sprint Comparison
-        </button>
+        <div className="flex items-center gap-3">
+          {teams.length > 0 && (
+            <div className="relative">
+              <select
+                value={selectedTeamId}
+                onChange={(e) => setSelectedTeamId(e.target.value)}
+                className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-10 text-sm font-medium text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer"
+              >
+                <option value="">All Teams</option>
+                {teams.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          )}
+          <button
+            onClick={() => setShowComparison(!showComparison)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+              showComparison
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <BarChart3 size={16} />
+            Sprint Comparison
+          </button>
+        </div>
       </div>
 
       {/* Sprint Comparison Chart */}
