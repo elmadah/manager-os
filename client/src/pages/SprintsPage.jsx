@@ -62,7 +62,10 @@ export default function SprintsPage() {
         const data = await api.get(`/sprints${params}`);
         setSprints(data);
         if (data.length > 0) {
-          setSelectedSprint(data[0]);
+          // Preserve current sprint selection if it exists in filtered list
+          const current = selectedSprint?.sprint;
+          const match = current && data.find(s => s.sprint === current);
+          setSelectedSprint(match || data[0]);
         } else {
           setSelectedSprint(null);
           setStories([]);

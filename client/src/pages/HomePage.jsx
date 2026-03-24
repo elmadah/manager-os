@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, FolderKanban, Users, AlertTriangle, Zap, ShieldAlert } from 'lucide-react';
 import api from '../lib/api';
 import CreateProjectModal from '../components/CreateProjectModal';
-import Timeline from '../components/timeline/Timeline';
+import SprintPulse from '../components/SprintPulse';
 
 const STATUS_STYLES = {
   upcoming: 'bg-gray-100 text-gray-700',
@@ -62,6 +62,7 @@ export default function HomePage() {
         overdueTodos: overdueTodos.length,
         activeBlockers: activeBlockers.length,
       });
+
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
@@ -131,9 +132,9 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Project Timeline */}
+      {/* Sprint Pulse */}
       <div className="mt-8">
-        <Timeline />
+        <SprintPulse />
       </div>
 
       <CreateProjectModal
@@ -210,12 +211,6 @@ function ProjectCard({ project, blockerCount, onClick }) {
         )}
       </div>
 
-      {/* Target Date */}
-      {project.target_date && (
-        <div className="mt-3 pt-3 border-t border-gray-100 text-sm text-gray-500">
-          Target: {new Date(project.target_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-        </div>
-      )}
     </div>
   );
 }
