@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, ArrowUp, ArrowDown, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, ArrowUp, ArrowDown, Pencil, BookOpen, Bug } from 'lucide-react';
 import StandupHistoryPopover from './StandupHistoryPopover';
 
 const STATUS_PRIORITY = {
@@ -28,7 +28,6 @@ function isDone(status) {
 const COLUMNS = [
   { key: 'key', label: 'Key', align: 'left', sortable: true },
   { key: 'summary', label: 'Summary', align: 'left', sortable: true },
-  { key: 'sprint', label: 'Sprint', align: 'left', sortable: true },
   { key: 'status', label: 'Status', align: 'left', sortable: true },
   { key: 'assignee', label: 'Assignee', align: 'left', sortable: true },
   { key: 'story_points', label: 'Points', align: 'right', sortable: true },
@@ -125,14 +124,17 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
 
   function computeGroupStats(groupStories) {
     let total = groupStories.length;
-    let points = 0, done = 0, carryOvers = 0, newCount = 0;
+    let storyPoints = 0, done = 0, carryOvers = 0, newCount = 0, openDefects = 0;
     for (const s of groupStories) {
-      points += s.story_points || 0;
+      const type = (s.issue_type || '').toLowerCase();
+      const isDefect = type === 'bug' || type === 'defect';
+      if (!isDefect) storyPoints += s.story_points || 0;
+      if (isDefect && !isDone(s.status)) openDefects++;
       if (s.sprint_status === 'completed') done++;
       else if (s.sprint_status === 'carried_over') carryOvers++;
       else if (s.sprint_status === 'new') newCount++;
     }
-    return { total, points, done, carryOvers, newCount };
+    return { total, storyPoints, done, carryOvers, newCount, openDefects };
   }
 
   if (filteredStories.length === 0) {
@@ -173,7 +175,13 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
               <div className="flex items-center gap-3 ml-auto text-xs text-gray-500">
                 <span>{stats.total} {stats.total === 1 ? 'story' : 'stories'}</span>
                 <span className="text-gray-300">·</span>
-                <span>{stats.points} pts</span>
+                <span>{stats.storyPoints} pts</span>
+                {stats.openDefects > 0 && (
+                  <>
+                    <span className="text-gray-300">·</span>
+                    <span className="text-red-600">{stats.openDefects} {stats.openDefects === 1 ? 'defect' : 'defects'}</span>
+                  </>
+                )}
                 <span className="text-gray-300">·</span>
                 <span className="text-green-600">{stats.done} done</span>
                 <span className="text-gray-300">·</span>
@@ -213,7 +221,10 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
                     {group.stories.map(story => (
                       <tr key={story.id} className="border-b border-gray-50 hover:bg-gray-50">
                         <td className="px-5 py-2.5">
-                          <span className="font-mono text-xs text-blue-600 font-medium">{story.key}</span>
+                          <span className="inline-flex items-center gap-1.5 font-mono text-xs text-blue-600 font-medium">
+                            <IssueTypeIcon issueType={story.issue_type} />
+                            {story.key}
+                          </span>
                         </td>
                         <td className="px-5 py-2.5 max-w-xs">
                           <span className="text-gray-900 truncate block" title={story.summary}>
@@ -222,7 +233,6 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
                               : story.summary}
                           </span>
                         </td>
-                        <td className="px-5 py-2.5 text-gray-600 text-xs">{story.sprint || '—'}</td>
                         <td className="px-5 py-2.5">
                           <StaleStatusCell
                             story={story}
@@ -343,6 +353,14 @@ function AssigneeCell({ name, assigneeId, workloadStats, onOpenStandup }) {
       )}
     </span>
   );
+}
+
+function IssueTypeIcon({ issueType }) {
+  const type = (issueType || '').toLowerCase();
+  if (type === 'bug' || type === 'defect') {
+    return <Bug size={14} className="text-red-500 shrink-0" title="Bug" />;
+  }
+  return <BookOpen size={14} className="text-green-600 shrink-0" title="Story" />;
 }
 
 function StaleStatusCell({ story, staleMap, standupHistoryMap, historyPopover, onShowHistory, onCloseHistory }) {
