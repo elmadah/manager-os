@@ -124,14 +124,17 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
 
   function computeGroupStats(groupStories) {
     let total = groupStories.length;
-    let points = 0, done = 0, carryOvers = 0, newCount = 0;
+    let storyPoints = 0, done = 0, carryOvers = 0, newCount = 0, openDefects = 0;
     for (const s of groupStories) {
-      points += s.story_points || 0;
+      const type = (s.issue_type || '').toLowerCase();
+      const isDefect = type === 'bug' || type === 'defect';
+      if (!isDefect) storyPoints += s.story_points || 0;
+      if (isDefect && !isDone(s.status)) openDefects++;
       if (s.sprint_status === 'completed') done++;
       else if (s.sprint_status === 'carried_over') carryOvers++;
       else if (s.sprint_status === 'new') newCount++;
     }
-    return { total, points, done, carryOvers, newCount };
+    return { total, storyPoints, done, carryOvers, newCount, openDefects };
   }
 
   if (filteredStories.length === 0) {
@@ -172,7 +175,13 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
               <div className="flex items-center gap-3 ml-auto text-xs text-gray-500">
                 <span>{stats.total} {stats.total === 1 ? 'story' : 'stories'}</span>
                 <span className="text-gray-300">·</span>
-                <span>{stats.points} pts</span>
+                <span>{stats.storyPoints} pts</span>
+                {stats.openDefects > 0 && (
+                  <>
+                    <span className="text-gray-300">·</span>
+                    <span className="text-red-600">{stats.openDefects} {stats.openDefects === 1 ? 'defect' : 'defects'}</span>
+                  </>
+                )}
                 <span className="text-gray-300">·</span>
                 <span className="text-green-600">{stats.done} done</span>
                 <span className="text-gray-300">·</span>
