@@ -292,6 +292,21 @@ export default function SettingsPage() {
             </div>
           )}
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Story Points Field
+            </label>
+            <input
+              type="text"
+              value={storyPointsField}
+              onChange={(e) => setStoryPointsField(e.target.value)}
+              className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Custom field ID for story points. Common values: customfield_10026, customfield_10028.
+            </p>
+          </div>
+
           <div className="flex items-center gap-3 pt-2">
             <button
               onClick={handleSave}
@@ -311,23 +326,6 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
-      </div>
-
-      {/* Story Points Field */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">Story Points Field</h2>
-        <p className="text-sm text-gray-500 mb-4">
-          The custom field ID used for story points in your Jira instance
-        </p>
-        <input
-          type="text"
-          value={storyPointsField}
-          onChange={(e) => setStoryPointsField(e.target.value)}
-          className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-        />
-        <p className="text-xs text-gray-400 mt-1">
-          Common values: customfield_10026, customfield_10028. Check your Jira admin for the exact field ID.
-        </p>
       </div>
 
       {/* Boards */}
