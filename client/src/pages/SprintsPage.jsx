@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, CheckCircle2, ArrowRightLeft, Sparkles, BarChart3 } from 'lucide-react';
+import { ChevronDown, CheckCircle2, ArrowRightLeft, Sparkles, BarChart3, Search } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import api from '../lib/api';
+import SprintListView from '../components/SprintListView';
 
 export default function SprintsPage() {
   const [sprints, setSprints] = useState([]);
@@ -12,9 +13,15 @@ export default function SprintsPage() {
   const [showComparison, setShowComparison] = useState(false);
   const [teams, setTeams] = useState([]);
   const [selectedTeamId, setSelectedTeamId] = useState('');
+  const [viewMode, setViewMode] = useState('status');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [jiraBaseUrl, setJiraBaseUrl] = useState('');
 
   useEffect(() => {
     api.get('/teams').then(setTeams).catch(() => {});
+    api.get('/settings/jira').then(data => {
+      if (data.base_url) setJiraBaseUrl(data.base_url.replace(/\/+$/, ''));
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -138,9 +145,9 @@ export default function SprintsPage() {
         </div>
       )}
 
-      {/* Sprint Selector */}
-      <div className="mb-6">
-        <div className="relative inline-block">
+      {/* Sprint Selector + View Controls */}
+      <div className="mb-6 flex items-center gap-4 flex-wrap">
+        <div className="relative">
           <select
             value={selectedSprint?.sprint || ''}
             onChange={(e) => {
@@ -155,6 +162,44 @@ export default function SprintsPage() {
           </select>
           <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
+
+        {/* Segmented Control */}
+        <div className="flex bg-gray-100 rounded-lg p-0.5">
+          <button
+            onClick={() => { setViewMode('status'); setSearchQuery(''); }}
+            className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              viewMode === 'status'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            By Status
+          </button>
+          <button
+            onClick={() => setViewMode('project')}
+            className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              viewMode === 'project'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            By Project
+          </button>
+        </div>
+
+        {/* Search (only in project view) */}
+        {viewMode === 'project' && (
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search key or summary…"
+              className="pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none w-64"
+            />
+          </div>
+        )}
       </div>
 
       {/* Metrics Bar */}
@@ -174,6 +219,8 @@ export default function SprintsPage() {
         <div className="flex items-center justify-center h-32">
           <div className="text-gray-400">Loading stories…</div>
         </div>
+      ) : viewMode === 'project' ? (
+        <SprintListView stories={stories} searchQuery={searchQuery} jiraBaseUrl={jiraBaseUrl} />
       ) : (
         <div className="space-y-6">
           {/* Completed */}
