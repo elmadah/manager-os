@@ -30,7 +30,7 @@ export default function SprintPulse() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {teams.map(team => (
         <SprintPulseCard key={team.id ?? 'all'} teamId={team.id} teamName={team.name} />
       ))}

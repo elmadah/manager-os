@@ -93,3 +93,140 @@
   border-color: #3b82f6 !important;
   border-width: 2px !important;
 }
+
+/* Task List — editor and rendered view */
+ul[data-type="taskList"] {
+  list-style: none !important;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+
+ul[data-type="taskList"] li {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: baseline !important;
+  gap: 0.5rem !important;
+  margin-bottom: 0.25rem;
+  padding-left: 0 !important;
+}
+
+ul[data-type="taskList"] li::before,
+ul[data-type="taskList"] li::marker {
+  display: none !important;
+  content: none !important;
+}
+
+ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  display: inline-flex !important;
+  align-items: center;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1;
+}
+
+ul[data-type="taskList"] li > label input[type="checkbox"] {
+  cursor: pointer;
+  width: 1rem;
+  height: 1rem;
+  accent-color: #3b82f6;
+  margin: 0 !important;
+}
+
+ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+ul[data-type="taskList"] li > div > p {
+  margin: 0 !important;
+}
+
+ul[data-type="taskList"] li[data-checked="true"] > div > p {
+  text-decoration: line-through;
+  color: #9ca3af;
+}
+
+/* Table — editor and rendered view */
+.tiptap-editor .ProseMirror table,
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75rem 0;
+}
+
+.tiptap-editor .ProseMirror table td,
+.tiptap-editor .ProseMirror table th,
+.prose table td,
+.prose table th {
+  border: 1px solid #d1d5db;
+  padding: 0.5rem 0.75rem;
+  min-width: 80px;
+  vertical-align: top;
+}
+
+.tiptap-editor .ProseMirror table th,
+.prose table th {
+  background: #f9fafb;
+  font-weight: 600;
+  text-align: left;
+}
+
+.tiptap-editor .ProseMirror table .selectedCell {
+  background: #dbeafe;
+}
+
+/* Mention — editor and rendered view */
+.tiptap-editor .ProseMirror .mention,
+.prose .mention,
+.prose [data-type="mention"] {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  font-weight: 500;
+  font-size: 0.875em;
+  white-space: nowrap;
+}
+
+/* Table context toolbar */
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.table-toolbar button {
+  color: #6b7280;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.table-toolbar button:hover {
+  color: #1f2937;
+  background: #f3f4f6;
+}
+
+.table-toolbar button.destructive:hover {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.table-toolbar .separator {
+  width: 1px;
+  height: 16px;
+  background: #e5e7eb;
+  margin: 0 2px;
+}

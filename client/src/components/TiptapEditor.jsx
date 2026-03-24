@@ -2,10 +2,21 @@ import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
-import { useCallback, useRef } from 'react';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableHeader from '@tiptap/extension-table-header';
+import TableCell from '@tiptap/extension-table-cell';
+import Mention from '@tiptap/extension-mention';
+import { ReactRenderer } from '@tiptap/react';
+import tippy from 'tippy.js';
+import { useCallback, useRef, useState, useEffect } from 'react';
+import MentionList from './MentionList';
 import {
   Bold, Italic, Strikethrough, Code, List, ListOrdered,
   Heading1, Heading2, Quote, Minus, ImagePlus, Undo, Redo,
+  ListChecks, Table as TableIcon,
 } from 'lucide-react';
 import { createSlashCommands } from './SlashCommands';
 import { DragHandle } from './DragHandle';
@@ -13,8 +24,18 @@ import './TiptapEditor.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-export default function TiptapEditor({ content, onChange, placeholder = 'Write your note...' }) {
+export default function TiptapEditor({ content, onChange, placeholder = 'Write your note...', teamMembers: teamMembersProp }) {
   const fileInputRef = useRef(null);
+  const [fetchedMembers, setFetchedMembers] = useState([]);
+  const teamMembers = teamMembersProp || fetchedMembers;
+  const teamMembersRef = useRef(teamMembers);
+  teamMembersRef.current = teamMembers;
+
+  useEffect(() => {
+    if (!teamMembersProp) {
+      fetch(`${API_BASE}/team`).then(r => r.json()).then(setFetchedMembers).catch(() => {});
+    }
+  }, [teamMembersProp]);
 
   const triggerImageUpload = useCallback(() => {
     fileInputRef.current?.click();
@@ -37,6 +58,63 @@ export default function TiptapEditor({ content, onChange, placeholder = 'Write y
       StarterKit,
       Image.configure({ inline: false, allowBase64: false }),
       Placeholder.configure({ placeholder: 'Type / for commands...' }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      Mention.configure({
+        HTMLAttributes: { class: 'mention' },
+        renderLabel: ({ node }) => `@${node.attrs.label || node.attrs.id}`,
+        suggestion: {
+          items: ({ query }) => {
+            return teamMembersRef.current
+              .filter(m => m.name.toLowerCase().includes(query.toLowerCase()))
+              .slice(0, 10);
+          },
+          render: () => {
+            let component;
+            let popup;
+
+            return {
+              onStart: (props) => {
+                component = new ReactRenderer(MentionList, {
+                  props,
+                  editor: props.editor,
+                });
+                if (!props.clientRect) return;
+                popup = tippy('body', {
+                  getReferenceClientRect: props.clientRect,
+                  appendTo: () => document.body,
+                  content: component.element,
+                  showOnCreate: true,
+                  interactive: true,
+                  trigger: 'manual',
+                  placement: 'bottom-start',
+                });
+              },
+              onUpdate: (props) => {
+                component?.updateProps(props);
+                if (props.clientRect) {
+                  popup?.[0]?.setProps({ getReferenceClientRect: props.clientRect });
+                }
+              },
+              onKeyDown: (props) => {
+                if (props.event.key === 'Escape') {
+                  popup?.[0]?.hide();
+                  return true;
+                }
+                return component?.ref?.onKeyDown(props);
+              },
+              onExit: () => {
+                popup?.[0]?.destroy();
+                component?.destroy();
+              },
+            };
+          },
+        },
+      }),
       createSlashCommands(triggerImageUpload),
       DragHandle,
     ],
@@ -221,6 +299,22 @@ export default function TiptapEditor({ content, onChange, placeholder = 'Write y
 
         <Divider />
 
+        <ToolbarBtn
+          onClick={() => editor.chain().focus().toggleTaskList().run()}
+          active={editor.isActive('taskList')}
+          title="Task list"
+        >
+          <ListChecks size={14} />
+        </ToolbarBtn>
+        <ToolbarBtn
+          onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+          title="Insert table"
+        >
+          <TableIcon size={14} />
+        </ToolbarBtn>
+
+        <Divider />
+
         <ToolbarBtn onClick={handleImageUpload} title="Upload image">
           <ImagePlus size={14} />
         </ToolbarBtn>
@@ -242,6 +336,21 @@ export default function TiptapEditor({ content, onChange, placeholder = 'Write y
           </ToolbarBtn>
         </div>
       </div>
+
+      {/* Table Controls — shown when cursor is inside a table */}
+      {editor.isActive('table') && (
+        <div className="table-toolbar flex-wrap border-b border-gray-200 px-2 py-1.5 bg-gray-50">
+          <button onClick={() => editor.chain().focus().addRowBefore().run()}>Row above</button>
+          <button onClick={() => editor.chain().focus().addRowAfter().run()}>Row below</button>
+          <div className="separator" />
+          <button onClick={() => editor.chain().focus().addColumnBefore().run()}>Col before</button>
+          <button onClick={() => editor.chain().focus().addColumnAfter().run()}>Col after</button>
+          <div className="separator" />
+          <button className="destructive" onClick={() => editor.chain().focus().deleteRow().run()}>Delete row</button>
+          <button className="destructive" onClick={() => editor.chain().focus().deleteColumn().run()}>Delete col</button>
+          <button className="destructive" onClick={() => editor.chain().focus().deleteTable().run()}>Delete table</button>
+        </div>
+      )}
 
       {/* Editor */}
       <div className="prose prose-sm max-w-none relative">

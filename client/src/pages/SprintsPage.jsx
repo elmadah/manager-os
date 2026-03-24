@@ -16,7 +16,7 @@ export default function SprintsPage() {
   const [showComparison, setShowComparison] = useState(false);
   const [teams, setTeams] = useState([]);
   const [selectedTeamId, setSelectedTeamId] = useState('');
-  const [viewMode, setViewMode] = useState('status');
+  const [viewMode, setViewMode] = useState('project');
   const [searchQuery, setSearchQuery] = useState('');
   const [jiraBaseUrl, setJiraBaseUrl] = useState('');
   const [editingStory, setEditingStory] = useState(null);
@@ -26,6 +26,7 @@ export default function SprintsPage() {
   const [staleMap, setStaleMap] = useState({});
   const [standupHistoryMap, setStandupHistoryMap] = useState({});
   const [historyPopover, setHistoryPopover] = useState(null);
+  const [selectedMembers, setSelectedMembers] = useState(new Set());
 
   const fetchStaleData = useCallback(async () => {
     try {
@@ -48,7 +49,12 @@ export default function SprintsPage() {
   }, []);
 
   useEffect(() => {
-    api.get('/teams').then(setTeams).catch(() => {});
+    api.get('/teams').then(data => {
+      setTeams(data);
+      if (data.length > 0 && !selectedTeamId) {
+        setSelectedTeamId(String(data[0].id));
+      }
+    }).catch(() => {});
     api.get('/team').then(setTeamMembers).catch(() => {});
     api.get('/settings/jira').then(data => {
       if (data.base_url) setJiraBaseUrl(data.base_url.replace(/\/+$/, ''));
@@ -145,9 +151,13 @@ export default function SprintsPage() {
     );
   }
 
-  const completed = stories.filter(s => s.sprint_status === 'completed');
-  const carriedOver = stories.filter(s => s.sprint_status === 'carried_over');
-  const newStories = stories.filter(s => s.sprint_status === 'new');
+  const filteredStories = selectedMembers.size > 0
+    ? stories.filter(s => selectedMembers.has(s.assignee_id))
+    : stories;
+
+  const completed = filteredStories.filter(s => s.sprint_status === 'completed');
+  const carriedOver = filteredStories.filter(s => s.sprint_status === 'carried_over');
+  const newStories = filteredStories.filter(s => s.sprint_status === 'new');
 
   const comparisonData = sprints.slice(0, 5).reverse().map(s => ({
     sprint: s.sprint.length > 20 ? s.sprint.slice(0, 20) + '…' : s.sprint,
@@ -169,7 +179,6 @@ export default function SprintsPage() {
                 onChange={(e) => setSelectedTeamId(e.target.value)}
                 className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-10 text-sm font-medium text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer"
               >
-                <option value="">All Teams</option>
                 {teams.map(t => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
@@ -295,6 +304,46 @@ export default function SprintsPage() {
         )}
       </div>
 
+      {/* Team Member Avatar Filter */}
+      {teamMembers.length > 0 && (
+        <div className="mb-6 flex items-center gap-2 flex-wrap">
+          {teamMembers.map(m => {
+            const initials = m.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+            const isSelected = selectedMembers.has(m.id);
+            return (
+              <button
+                key={m.id}
+                onClick={() => {
+                  setSelectedMembers(prev => {
+                    const next = new Set(prev);
+                    if (next.has(m.id)) next.delete(m.id);
+                    else next.add(m.id);
+                    return next;
+                  });
+                }}
+                title={m.name}
+                className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
+                  isSelected
+                    ? 'ring-2 ring-blue-500 ring-offset-2'
+                    : 'hover:ring-2 hover:ring-gray-300 hover:ring-offset-1'
+                }`}
+                style={{ backgroundColor: m.color || '#e5e7eb', color: '#fff' }}
+              >
+                {initials}
+              </button>
+            );
+          })}
+          {selectedMembers.size > 0 && (
+            <button
+              onClick={() => setSelectedMembers(new Set())}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium ml-1"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Metrics Bar */}
       {selectedSprint && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
@@ -313,7 +362,7 @@ export default function SprintsPage() {
           <div className="text-gray-400">Loading stories…</div>
         </div>
       ) : viewMode === 'project' ? (
-        <SprintListView stories={stories} searchQuery={searchQuery} jiraBaseUrl={jiraBaseUrl} onEditStory={setEditingStory} onOpenStandup={handleOpenStandup} staleMap={staleMap} standupHistoryMap={standupHistoryMap} historyPopover={historyPopover} onShowHistory={setHistoryPopover} onCloseHistory={() => setHistoryPopover(null)} />
+        <SprintListView stories={filteredStories} searchQuery={searchQuery} jiraBaseUrl={jiraBaseUrl} onEditStory={setEditingStory} onOpenStandup={handleOpenStandup} staleMap={staleMap} standupHistoryMap={standupHistoryMap} historyPopover={historyPopover} onShowHistory={setHistoryPopover} onCloseHistory={() => setHistoryPopover(null)} />
       ) : (
         <div className="space-y-6">
           {/* Completed */}
