@@ -7,7 +7,7 @@ import {
 } from 'react';
 import {
   Heading1, Heading2, Heading3, List, ListOrdered, Quote, Code,
-  Minus, ImagePlus, Type,
+  Minus, ImagePlus, Type, ListChecks, Table,
 } from 'lucide-react';
 
 const COMMANDS = [
@@ -21,6 +21,8 @@ const COMMANDS = [
   { title: 'Code Block', description: 'Code snippet', icon: Code, command: ({ editor, range }) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run() },
   { title: 'Divider', description: 'Horizontal rule', icon: Minus, command: ({ editor, range }) => editor.chain().focus().deleteRange(range).setHorizontalRule().run() },
   { title: 'Image', description: 'Upload an image', icon: ImagePlus, command: ({ editor, range, onImageUpload }) => { editor.chain().focus().deleteRange(range).run(); onImageUpload?.(); } },
+  { title: 'Task List', description: 'Interactive checklist', icon: ListChecks, command: ({ editor, range }) => editor.chain().focus().deleteRange(range).toggleTaskList().run() },
+  { title: 'Table', description: 'Insert a table', icon: Table, command: ({ editor, range }) => editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
 ];
 
 const CommandList = forwardRef(({ items, command }, ref) => {

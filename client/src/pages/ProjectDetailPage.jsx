@@ -11,6 +11,7 @@ import { useToast } from '../components/ToastProvider';
 import CreateProjectModal from '../components/CreateProjectModal';
 import NotesPanel from '../components/NotesPanel';
 import StoryEditModal from '../components/StoryEditModal';
+import TiptapEditor from '../components/TiptapEditor';
 
 const STATUS_STYLES = {
   upcoming: 'bg-gray-100 text-gray-700',
@@ -88,6 +89,8 @@ export default function ProjectDetailPage() {
 
   // Inline editing
   const [editingField, setEditingField] = useState(null);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState('');
 
   async function loadProject() {
     try {
@@ -348,6 +351,63 @@ export default function ProjectDetailPage() {
         <StatCard icon={<RefreshCw size={18} />} label="Carry-overs" value={totalCarryOvers} color="orange" />
         <StatCard icon={<TrendingUp size={18} />} label="Progress" value={`${progress}%`} color="teal" />
         <StatCard icon={<BarChart3 size={18} />} label="Health" value={HEALTH_LABELS[project.health]} color={project.health === 'green' ? 'green' : project.health === 'yellow' ? 'orange' : 'red'} />
+      </div>
+
+      {/* Project Description */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold text-gray-900">Project Description</h2>
+        {!editingDescription && (
+          <button
+            onClick={() => { setDescriptionDraft(project.description || ''); setEditingDescription(true); }}
+            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+            title="Edit description"
+          >
+            <Pencil size={16} />
+          </button>
+        )}
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200 p-5 mb-8">
+        {editingDescription ? (
+          <div>
+            <TiptapEditor
+              content={descriptionDraft}
+              onChange={setDescriptionDraft}
+              placeholder="Write your project description..."
+            />
+            <div className="flex items-center gap-2 mt-3">
+              <button
+                onClick={async () => {
+                  try {
+                    await api.put(`/projects/${id}`, { description: descriptionDraft });
+                    setProject(prev => ({ ...prev, description: descriptionDraft }));
+                    setEditingDescription(false);
+                    toast.success('Description saved');
+                  } catch {
+                    toast.error('Failed to save description');
+                  }
+                }}
+                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setEditingDescription(false)}
+                className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          project.description ? (
+            <div
+              className="prose prose-sm max-w-none text-gray-700"
+              dangerouslySetInnerHTML={{ __html: project.description }}
+            />
+          ) : (
+            <p className="text-sm text-gray-400 italic">No description yet — click edit to add one</p>
+          )
+        )}
       </div>
 
       {/* Features Section */}
