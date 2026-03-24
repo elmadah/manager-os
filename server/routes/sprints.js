@@ -107,7 +107,7 @@ router.get('/:sprintName/stories', (req, res) => {
       SELECT DISTINCT
         st.id, st.key, st.summary, st.status AS current_status, st.story_points,
         st.first_seen_sprint, st.carry_over_count, st.sprints_to_complete,
-        st.assignee_id, st.feature_id,
+        st.assignee_id, st.feature_id, st.issue_type,
         tm.name AS assignee,
         f.name AS feature_name,
         p.name AS project_name,
@@ -164,6 +164,7 @@ router.get('/:sprintName/stories', (req, res) => {
         carry_over_count: story.carry_over_count,
         sprints_to_complete: story.sprints_to_complete,
         first_seen_sprint: story.first_seen_sprint,
+        issue_type: story.issue_type || '',
         sprint_status,
       };
     });
