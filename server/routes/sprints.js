@@ -111,6 +111,9 @@ router.get('/:sprintName/stories', (req, res) => {
         tm.name AS assignee,
         f.name AS feature_name,
         p.name AS project_name,
+        p.color AS project_color,
+        st.sprint AS story_sprint,
+        st.release_date,
         ssh.status AS sprint_status_raw
       FROM story_sprint_history ssh
       JOIN stories st ON st.id = ssh.story_id
@@ -154,6 +157,9 @@ router.get('/:sprintName/stories', (req, res) => {
         assignee: story.assignee,
         feature_name: story.feature_name,
         project_name: story.project_name,
+        project_color: story.project_color,
+        sprint: story.story_sprint,
+        release_date: story.release_date,
         carry_over_count: story.carry_over_count,
         sprints_to_complete: story.sprints_to_complete,
         first_seen_sprint: story.first_seen_sprint,
