@@ -141,3 +141,18 @@ CREATE TABLE IF NOT EXISTS jira_project_mappings (
   project_id INTEGER NOT NULL REFERENCES projects(id),
   UNIQUE(jira_project_key)
 );
+
+CREATE TABLE IF NOT EXISTS standup_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  team_member_id INTEGER NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  story_id INTEGER NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  status TEXT NOT NULL CHECK(status IN ('In Progress', 'Blocked', 'In Review', 'Done')),
+  note TEXT,
+  standup_date TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(team_member_id, story_id, standup_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_standup_entries_date ON standup_entries(standup_date);
+CREATE INDEX IF NOT EXISTS idx_standup_entries_member ON standup_entries(team_member_id);
+CREATE INDEX IF NOT EXISTS idx_standup_entries_story ON standup_entries(story_id);
