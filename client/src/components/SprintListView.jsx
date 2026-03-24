@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, ArrowUp, ArrowDown } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, ArrowUp, ArrowDown, Pencil } from 'lucide-react';
 
 const STATUS_PRIORITY = {
   'in progress': 0,
@@ -36,7 +36,7 @@ const COLUMNS = [
   { key: 'actions', label: 'Actions', align: 'center', sortable: false },
 ];
 
-export default function SprintListView({ stories, searchQuery, jiraBaseUrl }) {
+export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEditStory }) {
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
   const [sortConfig, setSortConfig] = useState({ key: 'status', direction: 'asc' });
 
@@ -249,19 +249,30 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl }) {
                           </span>
                         </td>
                         <td className="px-5 py-2.5 text-center">
-                          {jiraBaseUrl && story.key ? (
-                            <a
-                              href={`${jiraBaseUrl}/browse/${story.key}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center text-gray-400 hover:text-blue-600 transition-colors"
-                              title="Open in Jira"
-                            >
-                              <ExternalLink size={14} />
-                            </a>
-                          ) : (
-                            <span className="text-gray-300">—</span>
-                          )}
+                          <div className="inline-flex items-center gap-2">
+                            {onEditStory && (
+                              <button
+                                onClick={() => onEditStory(story)}
+                                className="text-gray-400 hover:text-blue-600 transition-colors"
+                                title="Edit story"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                            )}
+                            {jiraBaseUrl && story.key ? (
+                              <a
+                                href={`${jiraBaseUrl}/browse/${story.key}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-gray-400 hover:text-blue-600 transition-colors"
+                                title="Open in Jira"
+                              >
+                                <ExternalLink size={14} />
+                              </a>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, CheckCircle2, ArrowRightLeft, Sparkles, BarChart3, Search } from 'lucide-react';
+import { ChevronDown, CheckCircle2, ArrowRightLeft, Sparkles, BarChart3, Search, Pencil } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import api from '../lib/api';
 import SprintListView from '../components/SprintListView';
+import StoryEditModal from '../components/StoryEditModal';
 
 export default function SprintsPage() {
   const [sprints, setSprints] = useState([]);
@@ -16,9 +17,12 @@ export default function SprintsPage() {
   const [viewMode, setViewMode] = useState('status');
   const [searchQuery, setSearchQuery] = useState('');
   const [jiraBaseUrl, setJiraBaseUrl] = useState('');
+  const [editingStory, setEditingStory] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
 
   useEffect(() => {
     api.get('/teams').then(setTeams).catch(() => {});
+    api.get('/team').then(setTeamMembers).catch(() => {});
     api.get('/settings/jira').then(data => {
       if (data.base_url) setJiraBaseUrl(data.base_url.replace(/\/+$/, ''));
     }).catch(() => {});
@@ -61,6 +65,19 @@ export default function SprintsPage() {
     }
     loadStories();
   }, [selectedSprint, selectedTeamId]);
+
+  async function handleUpdateStory(storyId, data) {
+    try {
+      await api.put(`/stories/${storyId}`, data);
+      // Refresh stories for current sprint
+      const params = selectedTeamId ? `?team_id=${selectedTeamId}` : '';
+      const refreshed = await api.get(`/sprints/${encodeURIComponent(selectedSprint.sprint)}/stories${params}`);
+      setStories(refreshed);
+      setEditingStory(null);
+    } catch (err) {
+      console.error('Failed to update story:', err);
+    }
+  }
 
   if (loading) {
     return (
@@ -220,7 +237,7 @@ export default function SprintsPage() {
           <div className="text-gray-400">Loading stories…</div>
         </div>
       ) : viewMode === 'project' ? (
-        <SprintListView stories={stories} searchQuery={searchQuery} jiraBaseUrl={jiraBaseUrl} />
+        <SprintListView stories={stories} searchQuery={searchQuery} jiraBaseUrl={jiraBaseUrl} onEditStory={setEditingStory} />
       ) : (
         <div className="space-y-6">
           {/* Completed */}
@@ -229,7 +246,8 @@ export default function SprintsPage() {
             icon={<CheckCircle2 size={18} />}
             color="green"
             stories={completed}
-            columns={['key', 'summary', 'assignee', 'feature', 'project', 'points', 'sprints_to_complete']}
+            columns={['key', 'summary', 'assignee', 'feature', 'project', 'points', 'sprints_to_complete', 'actions']}
+            onEditStory={setEditingStory}
           />
 
           {/* Carried Over */}
@@ -238,7 +256,8 @@ export default function SprintsPage() {
             icon={<ArrowRightLeft size={18} />}
             color="orange"
             stories={carriedOver}
-            columns={['key', 'summary', 'assignee', 'feature', 'project', 'points', 'carry_over_count']}
+            columns={['key', 'summary', 'assignee', 'feature', 'project', 'points', 'carry_over_count', 'actions']}
+            onEditStory={setEditingStory}
           />
 
           {/* New */}
@@ -247,9 +266,19 @@ export default function SprintsPage() {
             icon={<Sparkles size={18} />}
             color="blue"
             stories={newStories}
-            columns={['key', 'summary', 'assignee', 'feature', 'project', 'points', 'status']}
+            columns={['key', 'summary', 'assignee', 'feature', 'project', 'points', 'status', 'actions']}
+            onEditStory={setEditingStory}
           />
         </div>
+      )}
+
+      {editingStory && (
+        <StoryEditModal
+          story={editingStory}
+          teamMembers={teamMembers}
+          onClose={() => setEditingStory(null)}
+          onSave={handleUpdateStory}
+        />
       )}
     </div>
   );
@@ -287,9 +316,10 @@ const columnHeaders = {
   sprints_to_complete: 'Sprints to Complete',
   carry_over_count: 'Carry-Over Count',
   status: 'Status',
+  actions: '',
 };
 
-function StorySection({ title, icon, color, stories, columns }) {
+function StorySection({ title, icon, color, stories, columns, onEditStory }) {
   if (stories.length === 0) {
     return (
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -324,7 +354,7 @@ function StorySection({ title, icon, color, stories, columns }) {
               <tr key={story.id} className="border-b border-gray-50 hover:bg-gray-50">
                 {columns.map(col => (
                   <td key={col} className="px-5 py-3">
-                    {renderCell(col, story)}
+                    {renderCell(col, story, onEditStory)}
                   </td>
                 ))}
               </tr>
@@ -336,7 +366,7 @@ function StorySection({ title, icon, color, stories, columns }) {
   );
 }
 
-function renderCell(col, story) {
+function renderCell(col, story, onEditStory) {
   switch (col) {
     case 'key':
       return <span className="font-mono text-xs text-blue-600 font-medium">{story.key}</span>;
@@ -360,6 +390,16 @@ function renderCell(col, story) {
       );
     case 'status':
       return <StatusBadge status={story.status} />;
+    case 'actions':
+      return (
+        <button
+          onClick={() => onEditStory(story)}
+          className="text-gray-400 hover:text-blue-600 transition-colors"
+          title="Edit story"
+        >
+          <Pencil size={14} />
+        </button>
+      );
     default:
       return '—';
   }
