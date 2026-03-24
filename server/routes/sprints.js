@@ -154,6 +154,7 @@ router.get('/:sprintName/stories', (req, res) => {
         summary: story.summary,
         status: statusInSprint,
         story_points: story.story_points,
+        assignee_id: story.assignee_id,
         assignee: story.assignee,
         feature_name: story.feature_name,
         project_name: story.project_name,

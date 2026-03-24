@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, ArrowUp, ArrowDown, Pencil } from 'lucide-react';
+import StandupHistoryPopover from './StandupHistoryPopover';
 
 const STATUS_PRIORITY = {
   'in progress': 0,
@@ -36,7 +37,7 @@ const COLUMNS = [
   { key: 'actions', label: 'Actions', align: 'center', sortable: false },
 ];
 
-export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEditStory }) {
+export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEditStory, onOpenStandup, staleMap, standupHistoryMap, historyPopover, onShowHistory, onCloseHistory }) {
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
   const [sortConfig, setSortConfig] = useState({ key: 'status', direction: 'asc' });
 
@@ -223,12 +224,21 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
                         </td>
                         <td className="px-5 py-2.5 text-gray-600 text-xs">{story.sprint || '—'}</td>
                         <td className="px-5 py-2.5">
-                          <StatusBadge status={story.status} />
+                          <StaleStatusCell
+                            story={story}
+                            staleMap={staleMap}
+                            standupHistoryMap={standupHistoryMap}
+                            historyPopover={historyPopover}
+                            onShowHistory={onShowHistory}
+                            onCloseHistory={onCloseHistory}
+                          />
                         </td>
                         <td className="px-5 py-2.5">
                           <AssigneeCell
                             name={story.assignee}
+                            assigneeId={story.assignee_id}
                             workloadStats={workloadStats}
+                            onOpenStandup={onOpenStandup}
                           />
                         </td>
                         <td className="px-5 py-2.5 text-right font-medium text-gray-900">
@@ -303,7 +313,7 @@ function StatusBadge({ status }) {
   );
 }
 
-function AssigneeCell({ name, workloadStats }) {
+function AssigneeCell({ name, assigneeId, workloadStats, onOpenStandup }) {
   if (!name) return <span className="text-gray-400">—</span>;
 
   const stats = workloadStats.byAssignee[name];
@@ -311,8 +321,14 @@ function AssigneeCell({ name, workloadStats }) {
   const stuckWork = stats && workloadStats.avgCarryOvers > 0 && stats.carryOvers > workloadStats.avgCarryOvers * 1.5;
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-gray-600">
-      {name}
+    <span className="inline-flex items-center gap-1.5">
+      <button
+        onClick={() => onOpenStandup && assigneeId && onOpenStandup(assigneeId, name)}
+        className="text-gray-600 hover:text-blue-600 cursor-pointer transition-colors"
+        title="Click to log standup"
+      >
+        {name}
+      </button>
       {overloaded && (
         <span
           className="w-2 h-2 rounded-full bg-orange-400 shrink-0"
@@ -326,5 +342,49 @@ function AssigneeCell({ name, workloadStats }) {
         />
       )}
     </span>
+  );
+}
+
+function StaleStatusCell({ story, staleMap, standupHistoryMap, historyPopover, onShowHistory, onCloseHistory }) {
+  const staleKey = `${story.id}-${story.assignee_id}`;
+  const daysSstale = staleMap?.[staleKey] || 0;
+  const hasHistory = standupHistoryMap?.[story.id];
+  const isPopoverOpen = historyPopover?.storyId === story.id;
+
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <StatusBadge status={story.status} />
+      {daysSstale > 0 ? (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            const rect = e.currentTarget.getBoundingClientRect();
+            onShowHistory?.({ storyId: story.id, storyKey: story.key, storySummary: story.summary, daysSstale, anchorRect: rect });
+          }}
+          className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0 animate-pulse cursor-pointer"
+          title={`Stale for ${daysSstale} days — click to view history`}
+        />
+      ) : hasHistory ? (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            const rect = e.currentTarget.getBoundingClientRect();
+            onShowHistory?.({ storyId: story.id, storyKey: story.key, storySummary: story.summary, daysSstale: 0, anchorRect: rect });
+          }}
+          className="w-2 h-2 rounded-full bg-gray-300 shrink-0 cursor-pointer"
+          title="View standup history"
+        />
+      ) : null}
+      {isPopoverOpen && (
+        <StandupHistoryPopover
+          storyId={historyPopover.storyId}
+          storyKey={historyPopover.storyKey}
+          storySummary={historyPopover.storySummary}
+          daysSstale={historyPopover.daysSstale}
+          anchorRect={historyPopover.anchorRect}
+          onClose={() => onCloseHistory?.()}
+        />
+      )}
+    </div>
   );
 }

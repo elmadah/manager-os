@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
-import { ChevronDown, CheckCircle2, ArrowRightLeft, Sparkles, BarChart3, Search, Pencil } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { ChevronDown, CheckCircle2, ArrowRightLeft, Sparkles, BarChart3, Search, Pencil, ClipboardList } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import api from '../lib/api';
 import SprintListView from '../components/SprintListView';
 import StoryEditModal from '../components/StoryEditModal';
+import StandupModal from '../components/StandupModal';
+import StandupHistoryPopover from '../components/StandupHistoryPopover';
 
 export default function SprintsPage() {
   const [sprints, setSprints] = useState([]);
@@ -19,6 +21,31 @@ export default function SprintsPage() {
   const [jiraBaseUrl, setJiraBaseUrl] = useState('');
   const [editingStory, setEditingStory] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [standupMember, setStandupMember] = useState(null);
+  const [showMemberPicker, setShowMemberPicker] = useState(false);
+  const [staleMap, setStaleMap] = useState({});
+  const [standupHistoryMap, setStandupHistoryMap] = useState({});
+  const [historyPopover, setHistoryPopover] = useState(null);
+
+  const fetchStaleData = useCallback(async () => {
+    try {
+      const data = await api.get('/standups/stale');
+      setStaleMap(data);
+    } catch {
+      setStaleMap({});
+    }
+  }, []);
+
+  const fetchStandupHistory = useCallback(async () => {
+    try {
+      const ids = await api.get('/standups/stories-with-history');
+      const map = {};
+      for (const id of ids) map[id] = true;
+      setStandupHistoryMap(map);
+    } catch {
+      setStandupHistoryMap({});
+    }
+  }, []);
 
   useEffect(() => {
     api.get('/teams').then(setTeams).catch(() => {});
@@ -65,6 +92,24 @@ export default function SprintsPage() {
     }
     loadStories();
   }, [selectedSprint, selectedTeamId]);
+
+  // Fetch stale data and standup history whenever stories change
+  useEffect(() => {
+    if (stories.length > 0) {
+      fetchStaleData();
+      fetchStandupHistory();
+    }
+  }, [stories, fetchStaleData, fetchStandupHistory]);
+
+  function handleOpenStandup(memberId, memberName) {
+    setStandupMember({ id: memberId, name: memberName });
+  }
+
+  function handleStandupSaved() {
+    setStandupMember(null);
+    fetchStaleData();
+    fetchStandupHistory();
+  }
 
   async function handleUpdateStory(storyId, data) {
     try {
@@ -129,6 +174,34 @@ export default function SprintsPage() {
               <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
           )}
+          <div className="relative">
+            <button
+              onClick={() => setShowMemberPicker(!showMemberPicker)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200"
+            >
+              <ClipboardList size={16} />
+              Log Standup
+            </button>
+            {showMemberPicker && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-40 w-48 py-1">
+                {teamMembers.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      setShowMemberPicker(false);
+                      handleOpenStandup(m.id, m.name);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    {m.name}
+                  </button>
+                ))}
+                {teamMembers.length === 0 && (
+                  <div className="px-4 py-2 text-sm text-gray-400">No team members</div>
+                )}
+              </div>
+            )}
+          </div>
           <button
             onClick={() => setShowComparison(!showComparison)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
@@ -237,7 +310,7 @@ export default function SprintsPage() {
           <div className="text-gray-400">Loading stories…</div>
         </div>
       ) : viewMode === 'project' ? (
-        <SprintListView stories={stories} searchQuery={searchQuery} jiraBaseUrl={jiraBaseUrl} onEditStory={setEditingStory} />
+        <SprintListView stories={stories} searchQuery={searchQuery} jiraBaseUrl={jiraBaseUrl} onEditStory={setEditingStory} onOpenStandup={handleOpenStandup} staleMap={staleMap} standupHistoryMap={standupHistoryMap} historyPopover={historyPopover} onShowHistory={setHistoryPopover} onCloseHistory={() => setHistoryPopover(null)} />
       ) : (
         <div className="space-y-6">
           {/* Completed */}
@@ -246,8 +319,14 @@ export default function SprintsPage() {
             icon={<CheckCircle2 size={18} />}
             color="green"
             stories={completed}
-            columns={['key', 'summary', 'assignee', 'feature', 'project', 'points', 'sprints_to_complete', 'actions']}
+            columns={['key', 'summary', 'assignee', 'feature', 'project', 'points', 'sprints_to_complete', 'status', 'actions']}
             onEditStory={setEditingStory}
+            onOpenStandup={handleOpenStandup}
+            staleMap={staleMap}
+            standupHistoryMap={standupHistoryMap}
+            historyPopover={historyPopover}
+            onShowHistory={setHistoryPopover}
+            onCloseHistory={() => setHistoryPopover(null)}
           />
 
           {/* Carried Over */}
@@ -256,8 +335,14 @@ export default function SprintsPage() {
             icon={<ArrowRightLeft size={18} />}
             color="orange"
             stories={carriedOver}
-            columns={['key', 'summary', 'assignee', 'feature', 'project', 'points', 'carry_over_count', 'actions']}
+            columns={['key', 'summary', 'assignee', 'feature', 'project', 'points', 'carry_over_count', 'status', 'actions']}
             onEditStory={setEditingStory}
+            onOpenStandup={handleOpenStandup}
+            staleMap={staleMap}
+            standupHistoryMap={standupHistoryMap}
+            historyPopover={historyPopover}
+            onShowHistory={setHistoryPopover}
+            onCloseHistory={() => setHistoryPopover(null)}
           />
 
           {/* New */}
@@ -268,6 +353,12 @@ export default function SprintsPage() {
             stories={newStories}
             columns={['key', 'summary', 'assignee', 'feature', 'project', 'points', 'status', 'actions']}
             onEditStory={setEditingStory}
+            onOpenStandup={handleOpenStandup}
+            staleMap={staleMap}
+            standupHistoryMap={standupHistoryMap}
+            historyPopover={historyPopover}
+            onShowHistory={setHistoryPopover}
+            onCloseHistory={() => setHistoryPopover(null)}
           />
         </div>
       )}
@@ -278,6 +369,16 @@ export default function SprintsPage() {
           teamMembers={teamMembers}
           onClose={() => setEditingStory(null)}
           onSave={handleUpdateStory}
+        />
+      )}
+
+      {standupMember && (
+        <StandupModal
+          memberId={standupMember.id}
+          memberName={standupMember.name}
+          stories={stories}
+          onClose={() => setStandupMember(null)}
+          onSaved={handleStandupSaved}
         />
       )}
     </div>
@@ -319,7 +420,7 @@ const columnHeaders = {
   actions: '',
 };
 
-function StorySection({ title, icon, color, stories, columns, onEditStory }) {
+function StorySection({ title, icon, color, stories, columns, onEditStory, onOpenStandup, staleMap, standupHistoryMap, historyPopover, onShowHistory, onCloseHistory }) {
   if (stories.length === 0) {
     return (
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -354,7 +455,7 @@ function StorySection({ title, icon, color, stories, columns, onEditStory }) {
               <tr key={story.id} className="border-b border-gray-50 hover:bg-gray-50">
                 {columns.map(col => (
                   <td key={col} className="px-5 py-3">
-                    {renderCell(col, story, onEditStory)}
+                    {renderCell(col, story, onEditStory, onOpenStandup, staleMap, standupHistoryMap, historyPopover, onShowHistory, onCloseHistory)}
                   </td>
                 ))}
               </tr>
@@ -366,14 +467,23 @@ function StorySection({ title, icon, color, stories, columns, onEditStory }) {
   );
 }
 
-function renderCell(col, story, onEditStory) {
+function renderCell(col, story, onEditStory, onOpenStandup, staleMap, standupHistoryMap, historyPopover, onShowHistory, onCloseHistory) {
   switch (col) {
     case 'key':
       return <span className="font-mono text-xs text-blue-600 font-medium">{story.key}</span>;
     case 'summary':
       return <span className="text-gray-900 max-w-md truncate block">{story.summary}</span>;
     case 'assignee':
-      return <span className="text-gray-600">{story.assignee || '—'}</span>;
+      if (!story.assignee) return <span className="text-gray-600">—</span>;
+      return (
+        <button
+          onClick={() => onOpenStandup && story.assignee_id && onOpenStandup(story.assignee_id, story.assignee)}
+          className="text-gray-600 hover:text-blue-600 cursor-pointer transition-colors"
+          title="Click to log standup"
+        >
+          {story.assignee}
+        </button>
+      );
     case 'feature':
       return <span className="text-gray-600">{story.feature_name || '—'}</span>;
     case 'project':
@@ -388,8 +498,48 @@ function renderCell(col, story, onEditStory) {
           {story.carry_over_count || 0}
         </span>
       );
-    case 'status':
-      return <StatusBadge status={story.status} />;
+    case 'status': {
+      const staleKey = `${story.id}-${story.assignee_id}`;
+      const daysSstale = staleMap?.[staleKey] || 0;
+      const hasHistory = standupHistoryMap?.[story.id];
+      const isPopoverOpen = historyPopover?.storyId === story.id;
+      return (
+        <div className="inline-flex items-center gap-1.5">
+          <StatusBadge status={story.status} />
+          {daysSstale > 0 ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                onShowHistory?.({ storyId: story.id, storyKey: story.key, storySummary: story.summary, daysSstale, anchorRect: rect });
+              }}
+              className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0 animate-pulse cursor-pointer"
+              title={`Stale for ${daysSstale} days — click to view history`}
+            />
+          ) : hasHistory ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                onShowHistory?.({ storyId: story.id, storyKey: story.key, storySummary: story.summary, daysSstale: 0, anchorRect: rect });
+              }}
+              className="w-2 h-2 rounded-full bg-gray-300 shrink-0 cursor-pointer"
+              title="View standup history"
+            />
+          ) : null}
+          {isPopoverOpen && (
+            <StandupHistoryPopover
+              storyId={historyPopover.storyId}
+              storyKey={historyPopover.storyKey}
+              storySummary={historyPopover.storySummary}
+              daysSstale={historyPopover.daysSstale}
+              anchorRect={historyPopover.anchorRect}
+              onClose={() => onCloseHistory?.()}
+            />
+          )}
+        </div>
+      );
+    }
     case 'actions':
       return (
         <button
