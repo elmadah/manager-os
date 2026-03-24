@@ -26,6 +26,7 @@ router.get('/', (req, res) => {
       ORDER BY p.updated_at DESC
     `).all();
 
+    const featureStmt = db.prepare('SELECT id, name FROM features WHERE project_id = ? ORDER BY name');
     const result = projects.map(p => ({
       id: p.id,
       name: p.name,
@@ -38,6 +39,7 @@ router.get('/', (req, res) => {
       created_at: p.created_at,
       updated_at: p.updated_at,
       feature_count: p.feature_count,
+      features: featureStmt.all(p.id),
       story_stats: {
         total_stories: p.total_stories,
         completed_stories: p.completed_stories,

@@ -158,11 +158,11 @@ router.put('/stories/:id', (req, res) => {
     const existing = db.prepare('SELECT * FROM stories WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Story not found' });
 
-    const { summary, sprint, status, assignee_id, story_points, release_date } = req.body;
+    const { summary, sprint, status, assignee_id, story_points, release_date, feature_id } = req.body;
     db.prepare(`
       UPDATE stories SET
         summary = ?, sprint = ?, status = ?, assignee_id = ?,
-        story_points = ?, release_date = ?, updated_at = datetime('now')
+        story_points = ?, release_date = ?, feature_id = ?, updated_at = datetime('now')
       WHERE id = ?
     `).run(
       summary ?? existing.summary,
@@ -171,13 +171,17 @@ router.put('/stories/:id', (req, res) => {
       assignee_id !== undefined ? assignee_id : existing.assignee_id,
       story_points ?? existing.story_points,
       release_date !== undefined ? release_date : existing.release_date,
+      feature_id !== undefined ? feature_id : existing.feature_id,
       req.params.id
     );
 
     const story = db.prepare(`
-      SELECT s.*, tm.name AS assignee_name
+      SELECT s.*, tm.name AS assignee_name,
+        f.name AS feature_name, p.name AS project_name, p.id AS project_id
       FROM stories s
       LEFT JOIN team_members tm ON tm.id = s.assignee_id
+      LEFT JOIN features f ON f.id = s.feature_id
+      LEFT JOIN projects p ON p.id = f.project_id
       WHERE s.id = ?
     `).get(req.params.id);
     res.json(story);
