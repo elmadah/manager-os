@@ -82,6 +82,7 @@ export default function ProjectDetailPage() {
   const [editingStory, setEditingStory] = useState(null);
   const [deletingStory, setDeletingStory] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [jiraBaseUrl, setJiraBaseUrl] = useState('');
 
   // Inline editing
   const [editingField, setEditingField] = useState(null);
@@ -113,6 +114,9 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     loadProject();
     api.get('/team').then(setTeamMembers).catch(() => {});
+    api.get('/settings/jira').then(data => {
+      if (data.base_url) setJiraBaseUrl(data.base_url.replace(/\/+$/, ''));
+    }).catch(() => {});
   }, [id]);
 
   async function toggleFeature(featureId) {
@@ -468,6 +472,7 @@ export default function ProjectDetailPage() {
                     onDelete={() => setDeletingFeature(feature)}
                     onEditStory={setEditingStory}
                     onDeleteStory={setDeletingStory}
+                    jiraBaseUrl={jiraBaseUrl}
                   />
                 );
               })}
@@ -570,7 +575,7 @@ function StatCard({ icon, label, value, color }) {
   );
 }
 
-function FeatureRow({ feature, isExpanded, progress, stories, isLoadingStories, onToggle, onEdit, onDelete, onEditStory, onDeleteStory }) {
+function FeatureRow({ feature, isExpanded, progress, stories, isLoadingStories, onToggle, onEdit, onDelete, onEditStory, onDeleteStory, jiraBaseUrl }) {
   return (
     <>
       <tr className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${isExpanded ? 'bg-gray-50' : ''}`}>
@@ -669,6 +674,7 @@ function FeatureRow({ feature, isExpanded, progress, stories, isLoadingStories, 
                     defaultSort={{ key: 'status', direction: 'asc' }}
                     onEdit={onEditStory}
                     onDelete={onDeleteStory}
+                    jiraBaseUrl={jiraBaseUrl}
                     compact
                     renderCell={{
                       assignee: (story) => (

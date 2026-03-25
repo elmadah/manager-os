@@ -20,15 +20,14 @@ function isDone(status) {
   return lower === 'done' || lower === 'closed' || lower === 'resolved';
 }
 
-// Status color mapping (inline colored text style)
-function getStatusColor(status) {
-  if (!status) return 'text-gray-400';
+// Status badge pill style
+function getStatusClasses(status) {
+  if (!status) return 'bg-gray-100 text-gray-700';
   const lower = status.toLowerCase();
-  if (lower === 'in progress' || lower === 'in_progress') return 'text-blue-600 font-medium';
-  if (lower === 'in review' || lower === 'code review') return 'text-purple-600 font-medium';
-  if (isDone(lower)) return 'text-green-600 font-medium';
-  if (lower === 'to do' || lower === 'todo' || lower === 'open') return 'text-gray-600';
-  return 'text-gray-600';
+  if (lower === 'in progress' || lower === 'in_progress') return 'bg-blue-100 text-blue-700';
+  if (lower === 'in review' || lower === 'code review') return 'bg-purple-100 text-purple-700';
+  if (isDone(lower)) return 'bg-green-100 text-green-700';
+  return 'bg-gray-100 text-gray-700';
 }
 
 export function IssueTypeIcon({ issueType }) {
@@ -115,7 +114,11 @@ export default function StoryTable({
         );
       case 'status':
         if (!story.status) return <span className="text-gray-400">—</span>;
-        return <span className={`text-xs ${getStatusColor(story.status)}`}>{story.status}</span>;
+        return (
+          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${getStatusClasses(story.status)}`}>
+            {story.status}
+          </span>
+        );
       case 'assignee':
         return <span className="text-gray-600 text-xs">{story.assignee || story.assignee_name || '—'}</span>;
       case 'story_points':
@@ -235,4 +238,4 @@ export default function StoryTable({
   );
 }
 
-export { getStatusPriority, isDone, getStatusColor };
+export { getStatusPriority, isDone, getStatusClasses };

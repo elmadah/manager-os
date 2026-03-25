@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import StandupHistoryPopover from './StandupHistoryPopover';
-import StoryTable, { getStatusPriority, isDone, getStatusColor } from './StoryTable';
+import StoryTable, { getStatusPriority, isDone, getStatusClasses } from './StoryTable';
 
 export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEditStory, onOpenStandup, staleMap, standupHistoryMap, historyPopover, onShowHistory, onCloseHistory }) {
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
@@ -217,7 +217,7 @@ function StaleStatusCell({ story, staleMap, standupHistoryMap, historyPopover, o
   return (
     <div className="inline-flex items-center gap-1.5">
       {story.status
-        ? <span className={`text-xs ${getStatusColor(story.status)}`}>{story.status}</span>
+        ? <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${getStatusClasses(story.status)}`}>{story.status}</span>
         : <span className="text-gray-400">—</span>
       }
       {daysSstale > 0 ? (
