@@ -119,6 +119,9 @@ export default function ProjectDetailPage() {
     }).catch(() => {});
   }, [id]);
 
+  const memberColorMap = {};
+  teamMembers.forEach(m => { memberColorMap[m.name] = m.color || '#9ca3af'; });
+
   async function toggleFeature(featureId) {
     const isExpanding = !expandedFeatures[featureId];
     setExpandedFeatures(prev => ({ ...prev, [featureId]: isExpanding }));
@@ -473,6 +476,7 @@ export default function ProjectDetailPage() {
                     onEditStory={setEditingStory}
                     onDeleteStory={setDeletingStory}
                     jiraBaseUrl={jiraBaseUrl}
+                    memberColorMap={memberColorMap}
                   />
                 );
               })}
@@ -575,7 +579,7 @@ function StatCard({ icon, label, value, color }) {
   );
 }
 
-function FeatureRow({ feature, isExpanded, progress, stories, isLoadingStories, onToggle, onEdit, onDelete, onEditStory, onDeleteStory, jiraBaseUrl }) {
+function FeatureRow({ feature, isExpanded, progress, stories, isLoadingStories, onToggle, onEdit, onDelete, onEditStory, onDeleteStory, jiraBaseUrl, memberColorMap }) {
   return (
     <>
       <tr className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${isExpanded ? 'bg-gray-50' : ''}`}>
@@ -676,11 +680,7 @@ function FeatureRow({ feature, isExpanded, progress, stories, isLoadingStories, 
                     onDelete={onDeleteStory}
                     jiraBaseUrl={jiraBaseUrl}
                     compact
-                    renderCell={{
-                      assignee: (story) => (
-                        <span className="text-gray-600 text-xs">{story.assignee_name || '—'}</span>
-                      ),
-                    }}
+                    memberColorMap={memberColorMap}
                   />
                 )}
               </div>

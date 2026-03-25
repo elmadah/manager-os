@@ -59,6 +59,7 @@ export default function TeamMemberPage() {
   const [editingStory, setEditingStory] = useState(null);
   const [deletingStory, setDeletingStory] = useState(null);
   const [jiraBaseUrl, setJiraBaseUrl] = useState('');
+  const [allMembers, setAllMembers] = useState([]);
 
   async function loadData() {
     try {
@@ -83,6 +84,7 @@ export default function TeamMemberPage() {
     api.get('/settings/jira').then(data => {
       if (data.base_url) setJiraBaseUrl(data.base_url.replace(/\/+$/, ''));
     }).catch(() => {});
+    api.get('/team').then(setAllMembers).catch(() => {});
   }, [id]);
 
   async function handleDelete() {
@@ -155,6 +157,10 @@ export default function TeamMemberPage() {
       badge: PROJECT_BG_COLORS[i % PROJECT_BG_COLORS.length],
     };
   });
+
+  // Build member color map
+  const memberColorMap = {};
+  allMembers.forEach(m => { memberColorMap[m.name] = m.color || '#9ca3af'; });
 
   return (
     <div>
@@ -230,6 +236,7 @@ export default function TeamMemberPage() {
           stats={stats}
           velocity={velocity}
           projectColorMap={projectColorMap}
+          memberColorMap={memberColorMap}
           jiraBaseUrl={jiraBaseUrl}
           onEdit={setEditingStory}
           onDelete={setDeletingStory}
@@ -306,7 +313,7 @@ function StatCard({ icon, label, value, color, highlight }) {
   );
 }
 
-function ActiveWorkTab({ stories, stats, velocity, projectColorMap, jiraBaseUrl, onEdit, onDelete }) {
+function ActiveWorkTab({ stories, stats, velocity, projectColorMap, memberColorMap, jiraBaseUrl, onEdit, onDelete }) {
   const [statusFilter, setStatusFilter] = useState('All');
 
   const filteredStories = useMemo(() => {
@@ -395,6 +402,7 @@ function ActiveWorkTab({ stories, stats, velocity, projectColorMap, jiraBaseUrl,
             onEdit={onEdit}
             onDelete={onDelete}
             jiraBaseUrl={jiraBaseUrl}
+            memberColorMap={memberColorMap}
             renderCell={{
               project_name: (story) => (
                 story.project_name ? (
