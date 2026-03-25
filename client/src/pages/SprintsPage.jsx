@@ -159,6 +159,12 @@ export default function SprintsPage() {
   const carriedOver = filteredStories.filter(s => s.sprint_status === 'carried_over');
   const newStories = filteredStories.filter(s => s.sprint_status === 'new');
 
+  const AVATAR_COLORS = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ec4899','#06b6d4','#ef4444','#6366f1','#14b8a6','#f97316'];
+  const memberColorMap = {};
+  teamMembers.forEach((m, i) => {
+    memberColorMap[m.name] = m.color || AVATAR_COLORS[i % AVATAR_COLORS.length];
+  });
+
   const comparisonData = sprints.slice(0, 5).reverse().map(s => ({
     sprint: s.sprint.length > 20 ? s.sprint.slice(0, 20) + '…' : s.sprint,
     'Completed Points': s.completed_points,
@@ -310,8 +316,7 @@ export default function SprintsPage() {
           {teamMembers.map((m, i) => {
             const initials = m.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
             const isSelected = selectedMembers.has(m.id);
-            const avatarColors = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ec4899','#06b6d4','#ef4444','#6366f1','#14b8a6','#f97316'];
-            const bgColor = m.color || avatarColors[i % avatarColors.length];
+            const bgColor = memberColorMap[m.name] || '#9ca3af';
             return (
               <button
                 key={m.id}
@@ -364,7 +369,7 @@ export default function SprintsPage() {
           <div className="text-gray-400">Loading stories…</div>
         </div>
       ) : viewMode === 'project' ? (
-        <SprintListView stories={filteredStories} searchQuery={searchQuery} jiraBaseUrl={jiraBaseUrl} onEditStory={setEditingStory} onOpenStandup={handleOpenStandup} staleMap={staleMap} standupHistoryMap={standupHistoryMap} historyPopover={historyPopover} onShowHistory={setHistoryPopover} onCloseHistory={() => setHistoryPopover(null)} />
+        <SprintListView stories={filteredStories} searchQuery={searchQuery} jiraBaseUrl={jiraBaseUrl} onEditStory={setEditingStory} onOpenStandup={handleOpenStandup} staleMap={staleMap} standupHistoryMap={standupHistoryMap} historyPopover={historyPopover} onShowHistory={setHistoryPopover} onCloseHistory={() => setHistoryPopover(null)} memberColorMap={memberColorMap} />
       ) : (
         <div className="space-y-6">
           {/* Completed */}
@@ -454,6 +459,7 @@ function MetricCard({ label, value, color }) {
     </div>
   );
 }
+
 
 const headerColors = {
   green: 'bg-green-50 border-green-200 text-green-800',

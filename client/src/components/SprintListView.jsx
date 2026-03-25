@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, User } from 'lucide-react';
 import StandupHistoryPopover from './StandupHistoryPopover';
 import StoryTable, { getStatusPriority, isDone, getStatusClasses } from './StoryTable';
 
-export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEditStory, onOpenStandup, staleMap, standupHistoryMap, historyPopover, onShowHistory, onCloseHistory }) {
+export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEditStory, onOpenStandup, staleMap, standupHistoryMap, historyPopover, onShowHistory, onCloseHistory, memberColorMap = {} }) {
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
 
   // Compute workload stats across all stories (before filtering)
@@ -164,6 +164,7 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
                       assigneeId={story.assignee_id}
                       workloadStats={workloadStats}
                       onOpenStandup={onOpenStandup}
+                      color={memberColorMap[story.assignee]}
                     />
                   ),
                 }}
@@ -176,7 +177,7 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
   );
 }
 
-function AssigneeCell({ name, assigneeId, workloadStats, onOpenStandup }) {
+function AssigneeCell({ name, assigneeId, workloadStats, onOpenStandup, color }) {
   if (!name) return <span className="text-gray-400">—</span>;
 
   const stats = workloadStats.byAssignee[name];
@@ -185,6 +186,12 @@ function AssigneeCell({ name, assigneeId, workloadStats, onOpenStandup }) {
 
   return (
     <span className="inline-flex items-center gap-1.5">
+      <span
+        className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+        style={{ backgroundColor: color || '#9ca3af' }}
+      >
+        <User size={10} className="text-white" />
+      </span>
       <button
         onClick={() => onOpenStandup && assigneeId && onOpenStandup(assigneeId, name)}
         className="text-gray-600 hover:text-blue-600 cursor-pointer transition-colors"

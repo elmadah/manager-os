@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ArrowUp, ArrowDown, Pencil, ExternalLink, Trash2, BookOpen, Bug } from 'lucide-react';
+import { ArrowUp, ArrowDown, Pencil, ExternalLink, Trash2, BookOpen, Bug, User } from 'lucide-react';
 
 // Shared status priority for sorting
 const STATUS_PRIORITY = {
@@ -52,6 +52,7 @@ export default function StoryTable({
   rowClassName,
   className = '',
   compact = false,
+  memberColorMap = {},
 }) {
   const [sortConfig, setSortConfig] = useState(defaultSort);
 
@@ -119,8 +120,22 @@ export default function StoryTable({
             {story.status}
           </span>
         );
-      case 'assignee':
-        return <span className="text-gray-600 text-xs">{story.assignee || story.assignee_name || '—'}</span>;
+      case 'assignee': {
+        const assigneeName = story.assignee || story.assignee_name;
+        if (!assigneeName) return <span className="text-gray-400">—</span>;
+        const assigneeColor = memberColorMap[assigneeName];
+        return (
+          <span className="inline-flex items-center gap-1.5 text-gray-600 text-xs">
+            <span
+              className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+              style={{ backgroundColor: assigneeColor || '#9ca3af' }}
+            >
+              <User size={10} className="text-white" />
+            </span>
+            {assigneeName}
+          </span>
+        );
+      }
       case 'story_points':
         return <span className="font-medium text-gray-900">{story.story_points || '—'}</span>;
       case 'release_date':
