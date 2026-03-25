@@ -170,7 +170,10 @@ export default function TeamMemberPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div className="flex items-center gap-5">
-          <div className="w-20 h-20 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-2xl font-bold">
+          <div
+            className="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold text-white"
+            style={{ backgroundColor: member.color || '#9ca3af' }}
+          >
             {getInitials(member.name)}
           </div>
           <div>

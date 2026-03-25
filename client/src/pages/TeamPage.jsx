@@ -81,7 +81,10 @@ export default function TeamPage() {
             >
               <div className="flex items-start gap-4">
                 {/* Avatar */}
-                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold shrink-0 text-white"
+                  style={{ backgroundColor: member.color || '#9ca3af' }}
+                >
                   {getInitials(member.name)}
                 </div>
                 <div className="min-w-0 flex-1">
