@@ -1,34 +1,24 @@
 import { useState, useMemo } from 'react';
 import { ArrowUp, ArrowDown, Pencil, ExternalLink, Trash2, BookOpen, Bug, User } from 'lucide-react';
+import { isDoneStatus, getStatusStyle, getStatusList } from '../lib/statuses';
 
-// Shared status priority for sorting
-const STATUS_PRIORITY = {
-  'in progress': 0, 'in_progress': 0,
-  'in review': 1, 'code review': 1,
-  'to do': 2, 'todo': 2, 'open': 2,
-  'done': 3, 'closed': 3,
-};
-
+// Shared status priority for sorting (category-based)
 function getStatusPriority(status) {
   if (!status) return 99;
-  return STATUS_PRIORITY[status.toLowerCase()] ?? 50;
+  const statuses = getStatusList();
+  const lower = status.toLowerCase();
+  const match = statuses.find(s => s.name.toLowerCase() === lower);
+  if (match) {
+    if (match.category === 'indeterminate') return 0;
+    if (match.category === 'new') return 2;
+    if (match.category === 'done') return 3;
+  }
+  return 50;
 }
 
-function isDone(status) {
-  if (!status) return false;
-  const lower = status.toLowerCase();
-  return lower === 'done' || lower === 'closed' || lower === 'resolved';
-}
-
-// Status badge pill style
-function getStatusClasses(status) {
-  if (!status) return 'bg-gray-100 text-gray-700';
-  const lower = status.toLowerCase();
-  if (lower === 'in progress' || lower === 'in_progress') return 'bg-blue-100 text-blue-700';
-  if (lower === 'in review' || lower === 'code review') return 'bg-purple-100 text-purple-700';
-  if (isDone(lower)) return 'bg-green-100 text-green-700';
-  return 'bg-gray-100 text-gray-700';
-}
+// Re-export for backwards compatibility
+const isDone = isDoneStatus;
+const getStatusClasses = getStatusStyle;
 
 export function IssueTypeIcon({ issueType }) {
   const type = (issueType || '').toLowerCase();

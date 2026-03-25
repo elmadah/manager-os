@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/init');
+const { doneCondition } = require('../lib/doneCondition');
 
 // GET /api/projects/:projectId/features
 router.get('/projects/:projectId/features', (req, res) => {
@@ -19,10 +20,10 @@ router.get('/projects/:projectId/features', (req, res) => {
       LEFT JOIN (
         SELECT feature_id,
           COUNT(*) AS total,
-          SUM(CASE WHEN status = 'Done' THEN 1 ELSE 0 END) AS completed,
+          SUM(CASE WHEN ${doneCondition('status')} THEN 1 ELSE 0 END) AS completed,
           SUM(CASE WHEN carry_over_count > 0 THEN 1 ELSE 0 END) AS carry_overs,
           SUM(story_points) AS total_points,
-          SUM(CASE WHEN status = 'Done' THEN story_points ELSE 0 END) AS completed_points
+          SUM(CASE WHEN ${doneCondition('status')} THEN story_points ELSE 0 END) AS completed_points
         FROM stories
         GROUP BY feature_id
       ) s ON s.feature_id = f.id

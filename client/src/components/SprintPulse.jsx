@@ -2,12 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart3, ArrowRightLeft, Clock, ShieldAlert, UserX } from 'lucide-react';
 import api from '../lib/api';
-
-const DONE_STATUSES = ['done', 'closed', 'resolved'];
-
-function isDone(status) {
-  return DONE_STATUSES.includes((status || '').toLowerCase());
-}
+import { isDoneStatus, getStatusStyle, fetchStatuses } from '../lib/statuses';
 
 export default function SprintPulse() {
   const [teams, setTeams] = useState([]);
@@ -53,6 +48,7 @@ function SprintPulseCard({ teamId, teamName }) {
     async function load() {
       setLoading(true);
       try {
+        await fetchStatuses();
         const params = teamId ? `?team_id=${teamId}` : '';
         const sprints = await api.get(`/sprints${params}`);
         if (cancelled) return;
@@ -112,11 +108,11 @@ function SprintPulseCard({ teamId, teamName }) {
 
   // Compute flags
   const carryOvers = stories.filter(s => s.sprint_status === 'carried_over');
-  const unassigned = stories.filter(s => !s.assignee_id && !isDone(s.status));
+  const unassigned = stories.filter(s => !s.assignee_id && !isDoneStatus(s.status));
 
   // Stuck: not done and in stale map
   const staleStoryIds = new Set(Object.keys(staleMap).map(k => parseInt(k.split('-')[0])));
-  const stuck = stories.filter(s => !isDone(s.status) && staleStoryIds.has(s.id));
+  const stuck = stories.filter(s => !isDoneStatus(s.status) && staleStoryIds.has(s.id));
 
   // Blocked: active blockers whose feature_id or team_member_id overlaps with sprint stories
   const storyFeatureIds = new Set(stories.filter(s => s.feature_id).map(s => s.feature_id));
@@ -130,7 +126,7 @@ function SprintPulseCard({ teamId, teamName }) {
   const blockedFeatureIds = new Set(relevantBlockers.filter(b => b.feature_id).map(b => b.feature_id));
   const blockedMemberIds = new Set(relevantBlockers.filter(b => b.team_member_id).map(b => b.team_member_id));
   const blocked = stories.filter(s =>
-    !isDone(s.status) && (
+    !isDoneStatus(s.status) && (
       (s.feature_id && blockedFeatureIds.has(s.feature_id)) ||
       (s.assignee_id && blockedMemberIds.has(s.assignee_id))
     )
@@ -159,7 +155,7 @@ function SprintPulseCard({ teamId, teamName }) {
     const memberStories = member.stories;
     const memberCarryOvers = memberStories.filter(s => s.sprint_status === 'carried_over');
     const hasBlocked = memberStories.some(s =>
-      !isDone(s.status) && (
+      !isDoneStatus(s.status) && (
         (s.feature_id && blockedFeatureIds.has(s.feature_id)) ||
         (s.assignee_id && blockedMemberIds.has(s.assignee_id))
       )
@@ -167,7 +163,7 @@ function SprintPulseCard({ teamId, teamName }) {
 
     if (hasBlocked || memberCarryOvers.length >= 2) return 'red';
 
-    const hasStuck = memberStories.some(s => !isDone(s.status) && staleStoryIds.has(s.id));
+    const hasStuck = memberStories.some(s => !isDoneStatus(s.status) && staleStoryIds.has(s.id));
     const hasUnassigned = false; // member has stories, so they're assigned
     if (hasStuck || hasUnassigned) return 'orange';
 
@@ -360,18 +356,8 @@ function MemberAvatar({ member, status, isActive, onClick, staleStoryIds, blocke
   );
 }
 
-const STATUS_PILLS = {
-  'to do': 'bg-gray-100 text-gray-600',
-  'in progress': 'bg-blue-100 text-blue-700',
-  'in review': 'bg-purple-100 text-purple-700',
-  'done': 'bg-green-100 text-green-700',
-  'closed': 'bg-green-100 text-green-700',
-  'resolved': 'bg-green-100 text-green-700',
-};
-
 function StoryRow({ story, isStale, isBlocked }) {
-  const statusKey = (story.status || '').toLowerCase();
-  const pillClass = STATUS_PILLS[statusKey] || 'bg-gray-100 text-gray-600';
+  const pillClass = getStatusStyle(story.status);
 
   return (
     <div className="flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 text-sm">
@@ -381,7 +367,7 @@ function StoryRow({ story, isStale, isBlocked }) {
             <span className="text-xs font-mono text-gray-400 shrink-0">{story.key}</span>
           )}
           {isBlocked && <ShieldAlert size={12} className="text-red-500 shrink-0" />}
-          {isStale && !isDone(story.status) && <Clock size={12} className="text-orange-500 shrink-0" />}
+          {isStale && !isDoneStatus(story.status) && <Clock size={12} className="text-orange-500 shrink-0" />}
           {story.sprint_status === 'carried_over' && <ArrowRightLeft size={12} className="text-orange-500 shrink-0" />}
         </div>
         <div className="text-gray-700 truncate">{story.summary}</div>

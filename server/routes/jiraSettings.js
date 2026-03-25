@@ -412,4 +412,79 @@ router.post('/boards/:id/sync', (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Story Statuses
+// ---------------------------------------------------------------------------
+
+// GET /api/settings/jira/statuses — return imported story statuses
+router.get('/statuses', (req, res) => {
+  try {
+    const statuses = db
+      .prepare('SELECT * FROM story_statuses ORDER BY display_order, name')
+      .all();
+    res.json(statuses);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/settings/jira/import-statuses — fetch statuses from Jira and replace local table
+router.post('/import-statuses', async (req, res) => {
+  try {
+    const settings = getSettings();
+    if (!settings) {
+      return res.status(400).json({ error: 'Jira is not configured yet' });
+    }
+
+    // Fetch all statuses from the Jira instance
+    const jiraStatuses = await jiraFetch('/rest/api/2/status', settings);
+
+    if (!Array.isArray(jiraStatuses) || jiraStatuses.length === 0) {
+      return res.status(404).json({ error: 'No statuses found in Jira' });
+    }
+
+    // Deduplicate by name, keeping the category from Jira's statusCategory
+    const seen = new Map();
+    for (const s of jiraStatuses) {
+      const name = s.name;
+      const category = s.statusCategory?.key || 'indeterminate';
+      if (!seen.has(name)) {
+        seen.set(name, category);
+      }
+    }
+
+    // Order: new (To Do) first, then indeterminate (In Progress), then done
+    const categoryOrder = { new: 0, indeterminate: 1, done: 2 };
+    const sorted = [...seen.entries()].sort((a, b) => {
+      const orderA = categoryOrder[a[1]] ?? 1;
+      const orderB = categoryOrder[b[1]] ?? 1;
+      if (orderA !== orderB) return orderA - orderB;
+      return a[0].localeCompare(b[0]);
+    });
+
+    // Replace table contents in a transaction
+    const replaceStatuses = db.transaction(() => {
+      db.prepare('DELETE FROM story_statuses').run();
+      const insert = db.prepare(
+        'INSERT INTO story_statuses (name, category, display_order) VALUES (?, ?, ?)'
+      );
+      sorted.forEach(([name, category], index) => {
+        insert.run(name, category, index);
+      });
+    });
+
+    replaceStatuses();
+
+    // Return the imported list
+    const statuses = db
+      .prepare('SELECT * FROM story_statuses ORDER BY display_order, name')
+      .all();
+
+    res.json({ success: true, count: statuses.length, statuses });
+  } catch (err) {
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
 module.exports = router;
