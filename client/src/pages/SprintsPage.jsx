@@ -307,9 +307,11 @@ export default function SprintsPage() {
       {/* Team Member Avatar Filter */}
       {teamMembers.length > 0 && (
         <div className="mb-6 flex items-center gap-2 flex-wrap">
-          {teamMembers.map(m => {
+          {teamMembers.map((m, i) => {
             const initials = m.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
             const isSelected = selectedMembers.has(m.id);
+            const avatarColors = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ec4899','#06b6d4','#ef4444','#6366f1','#14b8a6','#f97316'];
+            const bgColor = m.color || avatarColors[i % avatarColors.length];
             return (
               <button
                 key={m.id}
@@ -327,7 +329,7 @@ export default function SprintsPage() {
                     ? 'ring-2 ring-blue-500 ring-offset-2'
                     : 'hover:ring-2 hover:ring-gray-300 hover:ring-offset-1'
                 }`}
-                style={{ backgroundColor: m.color || '#e5e7eb', color: '#fff' }}
+                style={{ backgroundColor: bgColor, color: '#fff' }}
               >
                 {initials}
               </button>
