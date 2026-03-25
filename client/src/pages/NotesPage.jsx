@@ -3,6 +3,7 @@ import { StickyNote, Plus, Search, Pencil, Trash2, X } from 'lucide-react';
 import TiptapEditor from '../components/TiptapEditor';
 import ReactMarkdown from 'react-markdown';
 import api from '../lib/api';
+import useAutosave from '../hooks/useAutosave';
 
 const CATEGORIES = [
   { key: 'all', label: 'All' },
@@ -259,6 +260,8 @@ export default function NotesPage() {
                 teamMembers={teamMembers}
                 onSave={handleSaved}
                 onCancel={handleCancel}
+                onNoteCreated={(created) => setEditingNote(created)}
+                onNoteSaved={() => loadNotes()}
               />
             </div>
           ) : selectedNote ? (
@@ -362,7 +365,7 @@ export default function NotesPage() {
   );
 }
 
-function NoteEditor({ note, projects, features, teamMembers, onSave, onCancel }) {
+function NoteEditor({ note, projects, features, teamMembers, onSave, onCancel, onNoteCreated, onNoteSaved }) {
   const isEdit = !!note;
   const [form, setForm] = useState({
     content: note?.content || '',
@@ -374,6 +377,32 @@ function NoteEditor({ note, projects, features, teamMembers, onSave, onCancel })
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [localFeatures, setLocalFeatures] = useState(features || []);
+
+  const { saveStatus, createdNote, flushSave } = useAutosave({
+    editingNote: note,
+    content: form.content,
+    contextDefaults: {
+      category: form.category,
+      projectId: form.project_id || null,
+      featureId: form.feature_id || null,
+      teamMemberId: form.team_member_id || null,
+    },
+  });
+
+  // When autosave creates a new note, notify parent
+  useEffect(() => {
+    if (createdNote && onNoteCreated) {
+      onNoteCreated(createdNote);
+      if (onNoteSaved) onNoteSaved();
+    }
+  }, [createdNote]);
+
+  // When autosave completes a save for existing notes, refresh list
+  useEffect(() => {
+    if (saveStatus === 'saved' && onNoteSaved && note) {
+      onNoteSaved();
+    }
+  }, [saveStatus]);
 
   useEffect(() => {
     if (form.project_id) {
@@ -426,8 +455,17 @@ function NoteEditor({ note, projects, features, teamMembers, onSave, onCancel })
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit Note' : 'New Note'}</h3>
-        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit Note' : 'New Note'}</h3>
+          <span
+            className={`text-xs text-gray-400 transition-opacity duration-300 ${
+              saveStatus === 'idle' ? 'opacity-0' : 'opacity-100'
+            }`}
+          >
+            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : ''}
+          </span>
+        </div>
+        <button onClick={() => { flushSave(); onCancel(); }} className="text-gray-400 hover:text-gray-600">
           <X size={20} />
         </button>
       </div>
