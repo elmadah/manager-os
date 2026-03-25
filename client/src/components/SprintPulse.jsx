@@ -45,6 +45,7 @@ function SprintPulseCard({ teamId, teamName }) {
   const [blockers, setBlockers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeMember, setActiveMember] = useState(null);
+  const [teamMemberColors, setTeamMemberColors] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -66,16 +67,20 @@ function SprintPulseCard({ teamId, teamName }) {
         const current = sprints[0];
         setSprint(current);
 
-        const [storiesData, staleData, blockersData] = await Promise.all([
+        const [storiesData, staleData, blockersData, teamData] = await Promise.all([
           api.get(`/sprints/${encodeURIComponent(current.sprint)}/stories${params}`),
           api.get('/standups/stale').catch(() => ({})),
           api.get('/blockers?status=active').catch(() => []),
+          api.get('/team').catch(() => []),
         ]);
 
         if (cancelled) return;
         setStories(storiesData);
         setStaleMap(staleData);
         setBlockers(blockersData);
+        const colorMap = {};
+        teamData.forEach(m => { colorMap[m.name] = m.color || '#9ca3af'; });
+        setTeamMemberColors(colorMap);
       } catch (err) {
         console.error('Failed to load sprint pulse:', err);
       } finally {
@@ -212,6 +217,7 @@ function SprintPulseCard({ teamId, teamName }) {
                 staleStoryIds={staleStoryIds}
                 blockedFeatureIds={blockedFeatureIds}
                 blockedMemberIds={blockedMemberIds}
+                color={teamMemberColors[m.name]}
               />
             ))}
           </div>
@@ -277,7 +283,7 @@ const DOT_COLORS = {
   red: 'bg-red-500',
 };
 
-function MemberAvatar({ member, status, isActive, onClick, staleStoryIds, blockedFeatureIds, blockedMemberIds }) {
+function MemberAvatar({ member, status, isActive, onClick, staleStoryIds, blockedFeatureIds, blockedMemberIds, color }) {
   const ref = useRef(null);
   const navigate = useNavigate();
   const initials = member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -304,11 +310,12 @@ function MemberAvatar({ member, status, isActive, onClick, staleStoryIds, blocke
         className={`flex flex-col items-center gap-1 group ${isActive ? 'opacity-100' : ''}`}
         title={member.name}
       >
-        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
-          isActive
-            ? 'bg-blue-600 text-white ring-2 ring-blue-300'
-            : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
-        }`}>
+        <div
+          className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold text-white transition-all ${
+            isActive ? 'ring-2 ring-blue-300 ring-offset-2' : 'group-hover:opacity-80'
+          }`}
+          style={{ backgroundColor: color || '#9ca3af' }}
+        >
           {initials}
         </div>
         <div className={`w-2.5 h-2.5 rounded-full ${DOT_COLORS[status]}`} />

@@ -78,6 +78,27 @@ const db = {
     migrate('stories', 'issue_type', 'TEXT');
     migrate('stories', 'last_synced_at', 'TEXT');
 
+    // Team member color
+    migrate('team_members', 'color', 'TEXT');
+
+    // Backfill colors for existing members without one
+    const MEMBER_COLORS = [
+      '#3b82f6','#10b981','#8b5cf6','#f59e0b','#ec4899',
+      '#06b6d4','#ef4444','#6366f1','#14b8a6','#f97316',
+      '#0ea5e9','#84cc16','#a855f7','#f43f5e','#22d3ee',
+      '#eab308','#d946ef','#fb923c','#2dd4bf','#818cf8',
+      '#34d399','#c084fc','#fbbf24','#f472b6','#38bdf8',
+      '#a3e635','#e879f9','#fb7185','#67e8f9','#facc15',
+    ];
+    const noColorMembers = sqlDb.exec('SELECT id FROM team_members WHERE color IS NULL');
+    if (noColorMembers.length && noColorMembers[0].values.length) {
+      for (let i = 0; i < noColorMembers[0].values.length; i++) {
+        const memberId = noColorMembers[0].values[i][0];
+        const color = MEMBER_COLORS[i % MEMBER_COLORS.length];
+        sqlDb.exec(`UPDATE team_members SET color = '${color}' WHERE id = ${memberId}`);
+      }
+    }
+
     // Teams migrations
     migrate('team_members', 'team_id', 'INTEGER REFERENCES teams(id)');
     migrate('jira_boards', 'team_id', 'INTEGER REFERENCES teams(id)');

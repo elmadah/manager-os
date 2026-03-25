@@ -159,6 +159,11 @@ export default function SprintsPage() {
   const carriedOver = filteredStories.filter(s => s.sprint_status === 'carried_over');
   const newStories = filteredStories.filter(s => s.sprint_status === 'new');
 
+  const memberColorMap = {};
+  teamMembers.forEach((m) => {
+    memberColorMap[m.name] = m.color || '#9ca3af';
+  });
+
   const comparisonData = sprints.slice(0, 5).reverse().map(s => ({
     sprint: s.sprint.length > 20 ? s.sprint.slice(0, 20) + '…' : s.sprint,
     'Completed Points': s.completed_points,
@@ -307,9 +312,10 @@ export default function SprintsPage() {
       {/* Team Member Avatar Filter */}
       {teamMembers.length > 0 && (
         <div className="mb-6 flex items-center gap-2 flex-wrap">
-          {teamMembers.map(m => {
+          {teamMembers.map((m, i) => {
             const initials = m.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
             const isSelected = selectedMembers.has(m.id);
+            const bgColor = m.color || '#9ca3af';
             return (
               <button
                 key={m.id}
@@ -327,7 +333,7 @@ export default function SprintsPage() {
                     ? 'ring-2 ring-blue-500 ring-offset-2'
                     : 'hover:ring-2 hover:ring-gray-300 hover:ring-offset-1'
                 }`}
-                style={{ backgroundColor: m.color || '#e5e7eb', color: '#fff' }}
+                style={{ backgroundColor: bgColor, color: '#fff' }}
               >
                 {initials}
               </button>
@@ -362,7 +368,7 @@ export default function SprintsPage() {
           <div className="text-gray-400">Loading stories…</div>
         </div>
       ) : viewMode === 'project' ? (
-        <SprintListView stories={filteredStories} searchQuery={searchQuery} jiraBaseUrl={jiraBaseUrl} onEditStory={setEditingStory} onOpenStandup={handleOpenStandup} staleMap={staleMap} standupHistoryMap={standupHistoryMap} historyPopover={historyPopover} onShowHistory={setHistoryPopover} onCloseHistory={() => setHistoryPopover(null)} />
+        <SprintListView stories={filteredStories} searchQuery={searchQuery} jiraBaseUrl={jiraBaseUrl} onEditStory={setEditingStory} onOpenStandup={handleOpenStandup} staleMap={staleMap} standupHistoryMap={standupHistoryMap} historyPopover={historyPopover} onShowHistory={setHistoryPopover} onCloseHistory={() => setHistoryPopover(null)} memberColorMap={memberColorMap} />
       ) : (
         <div className="space-y-6">
           {/* Completed */}
@@ -452,6 +458,7 @@ function MetricCard({ label, value, color }) {
     </div>
   );
 }
+
 
 const headerColors = {
   green: 'bg-green-50 border-green-200 text-green-800',

@@ -291,15 +291,33 @@ router.get('/:id/performance-review', (req, res) => {
   }
 });
 
+const MEMBER_COLORS = [
+  '#3b82f6','#10b981','#8b5cf6','#f59e0b','#ec4899',
+  '#06b6d4','#ef4444','#6366f1','#14b8a6','#f97316',
+  '#0ea5e9','#84cc16','#a855f7','#f43f5e','#22d3ee',
+  '#eab308','#d946ef','#fb923c','#2dd4bf','#818cf8',
+  '#34d399','#c084fc','#fbbf24','#f472b6','#38bdf8',
+  '#a3e635','#e879f9','#fb7185','#67e8f9','#facc15',
+];
+
+function pickNextColor() {
+  const usedColors = db.prepare('SELECT color FROM team_members WHERE color IS NOT NULL').all().map(r => r.color);
+  const available = MEMBER_COLORS.filter(c => !usedColors.includes(c));
+  if (available.length > 0) return available[0];
+  // All 30 used — cycle based on count
+  return MEMBER_COLORS[usedColors.length % MEMBER_COLORS.length];
+}
+
 // POST /api/team
 router.post('/', (req, res) => {
   try {
-    const { name, role, email } = req.body;
+    const { name, role, email, color } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
+    const assignedColor = color || pickNextColor();
     const result = db.prepare(`
-      INSERT INTO team_members (name, role, email) VALUES (?, ?, ?)
-    `).run(name, role || '', email || '');
+      INSERT INTO team_members (name, role, email, color) VALUES (?, ?, ?, ?)
+    `).run(name, role || '', email || '', assignedColor);
 
     const member = db.prepare('SELECT * FROM team_members WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(member);
@@ -314,15 +332,16 @@ router.put('/:id', (req, res) => {
     const existing = db.prepare('SELECT * FROM team_members WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Team member not found' });
 
-    const { name, role, email } = req.body;
+    const { name, role, email, color } = req.body;
     db.prepare(`
       UPDATE team_members SET
-        name = ?, role = ?, email = ?
+        name = ?, role = ?, email = ?, color = ?
       WHERE id = ?
     `).run(
       name ?? existing.name,
       role ?? existing.role,
       email ?? existing.email,
+      color ?? existing.color,
       req.params.id
     );
 

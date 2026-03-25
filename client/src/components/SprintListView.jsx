@@ -1,44 +1,10 @@
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, ArrowUp, ArrowDown, Pencil, BookOpen, Bug } from 'lucide-react';
+import { ChevronDown, ChevronRight, User } from 'lucide-react';
 import StandupHistoryPopover from './StandupHistoryPopover';
+import StoryTable, { getStatusPriority, isDone, getStatusClasses } from './StoryTable';
 
-const STATUS_PRIORITY = {
-  'in progress': 0,
-  'in_progress': 0,
-  'in review': 1,
-  'code review': 1,
-  'to do': 2,
-  'todo': 2,
-  'open': 2,
-  'done': 3,
-  'closed': 3,
-};
-
-function getStatusPriority(status) {
-  if (!status) return 99;
-  return STATUS_PRIORITY[status.toLowerCase()] ?? 50;
-}
-
-function isDone(status) {
-  if (!status) return false;
-  const lower = status.toLowerCase();
-  return lower === 'done' || lower === 'closed' || lower === 'resolved';
-}
-
-const COLUMNS = [
-  { key: 'key', label: 'Key', align: 'left', sortable: true },
-  { key: 'summary', label: 'Summary', align: 'left', sortable: true },
-  { key: 'status', label: 'Status', align: 'left', sortable: true },
-  { key: 'assignee', label: 'Assignee', align: 'left', sortable: true },
-  { key: 'story_points', label: 'Points', align: 'right', sortable: true },
-  { key: 'release_date', label: 'Release', align: 'left', sortable: true },
-  { key: 'carry_over_count', label: 'Carry-overs', align: 'right', sortable: true },
-  { key: 'actions', label: 'Actions', align: 'center', sortable: false },
-];
-
-export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEditStory, onOpenStandup, staleMap, standupHistoryMap, historyPopover, onShowHistory, onCloseHistory }) {
+export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEditStory, onOpenStandup, staleMap, standupHistoryMap, historyPopover, onShowHistory, onCloseHistory, memberColorMap = {} }) {
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
-  const [sortConfig, setSortConfig] = useState({ key: 'status', direction: 'asc' });
 
   // Compute workload stats across all stories (before filtering)
   const workloadStats = useMemo(() => {
@@ -75,7 +41,6 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
       map[project].stories.push(s);
     }
 
-    // Sort groups: Unassigned first, then alphabetical
     const entries = Object.values(map);
     entries.sort((a, b) => {
       if (!a.name) return -1;
@@ -85,27 +50,6 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
     return entries;
   }, [filteredStories]);
 
-  // Sort stories within groups
-  const sortedGroups = useMemo(() => {
-    return groups.map(group => ({
-      ...group,
-      stories: [...group.stories].sort((a, b) => {
-        const { key, direction } = sortConfig;
-        const mult = direction === 'asc' ? 1 : -1;
-
-        if (key === 'status') {
-          return mult * (getStatusPriority(a.status) - getStatusPriority(b.status));
-        }
-        if (key === 'story_points' || key === 'carry_over_count') {
-          return mult * ((a[key] || 0) - (b[key] || 0));
-        }
-        const aVal = (a[key] || '').toString().toLowerCase();
-        const bVal = (b[key] || '').toString().toLowerCase();
-        return mult * aVal.localeCompare(bVal);
-      }),
-    }));
-  }, [groups, sortConfig]);
-
   function toggleGroup(name) {
     setCollapsedGroups(prev => {
       const next = new Set(prev);
@@ -113,13 +57,6 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
       else next.add(name);
       return next;
     });
-  }
-
-  function handleSort(key) {
-    setSortConfig(prev => ({
-      key,
-      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
-    }));
   }
 
   function computeGroupStats(groupStories) {
@@ -145,9 +82,20 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
     );
   }
 
+  const storyTableColumns = [
+    { key: 'key', label: 'Key', align: 'left' },
+    { key: 'summary', label: 'Summary', align: 'left' },
+    { key: 'status', label: 'Status', align: 'left' },
+    { key: 'assignee', label: 'Assignee', align: 'left' },
+    { key: 'story_points', label: 'Points', align: 'right' },
+    { key: 'release_date', label: 'Release', align: 'left' },
+    { key: 'carry_over_count', label: 'Carry-overs', align: 'right' },
+    { key: 'actions', label: 'Actions', align: 'center', sortable: false },
+  ];
+
   return (
     <div className="space-y-4">
-      {sortedGroups.map(group => {
+      {groups.map(group => {
         const groupKey = group.name || '__unassigned__';
         const collapsed = collapsedGroups.has(groupKey);
         const stats = computeGroupStats(group.stories);
@@ -193,112 +141,34 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
 
             {/* Stories Table */}
             {!collapsed && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100">
-                      {COLUMNS.map(col => (
-                        <th
-                          key={col.key}
-                          className={`px-5 py-2.5 text-xs font-medium text-gray-500 uppercase tracking-wide ${
-                            col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'
-                          } ${col.sortable ? 'cursor-pointer hover:text-gray-700 select-none' : ''}`}
-                          onClick={col.sortable ? () => handleSort(col.key) : undefined}
-                        >
-                          <span className="inline-flex items-center gap-1">
-                            {col.label}
-                            {col.sortable && sortConfig.key === col.key && (
-                              sortConfig.direction === 'asc'
-                                ? <ArrowUp size={12} />
-                                : <ArrowDown size={12} />
-                            )}
-                          </span>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.stories.map(story => (
-                      <tr key={story.id} className="border-b border-gray-50 hover:bg-gray-50">
-                        <td className="px-5 py-2.5">
-                          <span className="inline-flex items-center gap-1.5 font-mono text-xs text-blue-600 font-medium">
-                            <IssueTypeIcon issueType={story.issue_type} />
-                            {story.key}
-                          </span>
-                        </td>
-                        <td className="px-5 py-2.5 max-w-xs">
-                          <span className="text-gray-900 truncate block" title={story.summary}>
-                            {story.summary && story.summary.length > 60
-                              ? story.summary.slice(0, 60) + '…'
-                              : story.summary}
-                          </span>
-                        </td>
-                        <td className="px-5 py-2.5">
-                          <StaleStatusCell
-                            story={story}
-                            staleMap={staleMap}
-                            standupHistoryMap={standupHistoryMap}
-                            historyPopover={historyPopover}
-                            onShowHistory={onShowHistory}
-                            onCloseHistory={onCloseHistory}
-                          />
-                        </td>
-                        <td className="px-5 py-2.5">
-                          <AssigneeCell
-                            name={story.assignee}
-                            assigneeId={story.assignee_id}
-                            workloadStats={workloadStats}
-                            onOpenStandup={onOpenStandup}
-                          />
-                        </td>
-                        <td className="px-5 py-2.5 text-right font-medium text-gray-900">
-                          {story.story_points || '—'}
-                        </td>
-                        <td className="px-5 py-2.5 text-gray-600 text-xs">
-                          {story.release_date || '—'}
-                        </td>
-                        <td className="px-5 py-2.5 text-right">
-                          <span className={`font-medium ${
-                            (story.carry_over_count || 0) >= 3
-                              ? 'text-red-600 font-bold'
-                              : (story.carry_over_count || 0) > 0
-                                ? 'text-orange-600'
-                                : 'text-gray-400'
-                          }`}>
-                            {story.carry_over_count || 0}
-                          </span>
-                        </td>
-                        <td className="px-5 py-2.5 text-center">
-                          <div className="inline-flex items-center gap-2">
-                            {onEditStory && (
-                              <button
-                                onClick={() => onEditStory(story)}
-                                className="text-gray-400 hover:text-blue-600 transition-colors"
-                                title="Edit story"
-                              >
-                                <Pencil size={14} />
-                              </button>
-                            )}
-                            {jiraBaseUrl && story.key ? (
-                              <a
-                                href={`${jiraBaseUrl}/browse/${story.key}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center text-gray-400 hover:text-blue-600 transition-colors"
-                                title="Open in Jira"
-                              >
-                                <ExternalLink size={14} />
-                              </a>
-                            ) : (
-                              <span className="text-gray-300">—</span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <StoryTable
+                stories={group.stories}
+                columns={storyTableColumns}
+                defaultSort={{ key: 'status', direction: 'asc' }}
+                onEdit={onEditStory}
+                jiraBaseUrl={jiraBaseUrl}
+                renderCell={{
+                  status: (story) => (
+                    <StaleStatusCell
+                      story={story}
+                      staleMap={staleMap}
+                      standupHistoryMap={standupHistoryMap}
+                      historyPopover={historyPopover}
+                      onShowHistory={onShowHistory}
+                      onCloseHistory={onCloseHistory}
+                    />
+                  ),
+                  assignee: (story) => (
+                    <AssigneeCell
+                      name={story.assignee}
+                      assigneeId={story.assignee_id}
+                      workloadStats={workloadStats}
+                      onOpenStandup={onOpenStandup}
+                      color={memberColorMap[story.assignee]}
+                    />
+                  ),
+                }}
+              />
             )}
           </div>
         );
@@ -307,23 +177,7 @@ export default function SprintListView({ stories, searchQuery, jiraBaseUrl, onEd
   );
 }
 
-function StatusBadge({ status }) {
-  if (!status) return <span className="text-gray-400">—</span>;
-
-  const lower = status.toLowerCase();
-  let classes = 'bg-gray-100 text-gray-700';
-  if (isDone(lower)) classes = 'bg-green-100 text-green-700';
-  else if (lower === 'in progress' || lower === 'in_progress') classes = 'bg-blue-100 text-blue-700';
-  else if (lower === 'in review' || lower === 'code review') classes = 'bg-purple-100 text-purple-700';
-
-  return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${classes}`}>
-      {status}
-    </span>
-  );
-}
-
-function AssigneeCell({ name, assigneeId, workloadStats, onOpenStandup }) {
+function AssigneeCell({ name, assigneeId, workloadStats, onOpenStandup, color }) {
   if (!name) return <span className="text-gray-400">—</span>;
 
   const stats = workloadStats.byAssignee[name];
@@ -332,6 +186,12 @@ function AssigneeCell({ name, assigneeId, workloadStats, onOpenStandup }) {
 
   return (
     <span className="inline-flex items-center gap-1.5">
+      <span
+        className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+        style={{ backgroundColor: color || '#9ca3af' }}
+      >
+        <User size={10} className="text-white" />
+      </span>
       <button
         onClick={() => onOpenStandup && assigneeId && onOpenStandup(assigneeId, name)}
         className="text-gray-600 hover:text-blue-600 cursor-pointer transition-colors"
@@ -355,14 +215,6 @@ function AssigneeCell({ name, assigneeId, workloadStats, onOpenStandup }) {
   );
 }
 
-function IssueTypeIcon({ issueType }) {
-  const type = (issueType || '').toLowerCase();
-  if (type === 'bug' || type === 'defect') {
-    return <Bug size={14} className="text-red-500 shrink-0" title="Bug" />;
-  }
-  return <BookOpen size={14} className="text-green-600 shrink-0" title="Story" />;
-}
-
 function StaleStatusCell({ story, staleMap, standupHistoryMap, historyPopover, onShowHistory, onCloseHistory }) {
   const staleKey = `${story.id}-${story.assignee_id}`;
   const daysSstale = staleMap?.[staleKey] || 0;
@@ -371,7 +223,10 @@ function StaleStatusCell({ story, staleMap, standupHistoryMap, historyPopover, o
 
   return (
     <div className="inline-flex items-center gap-1.5">
-      <StatusBadge status={story.status} />
+      {story.status
+        ? <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${getStatusClasses(story.status)}`}>{story.status}</span>
+        : <span className="text-gray-400">—</span>
+      }
       {daysSstale > 0 ? (
         <button
           onClick={(e) => {
