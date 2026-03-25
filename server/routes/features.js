@@ -159,6 +159,8 @@ router.put('/stories/:id', (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Story not found' });
 
     const { summary, sprint, status, assignee_id, story_points, release_date, feature_id } = req.body;
+    const newStatus = status ?? existing.status;
+    const newSprint = sprint ?? existing.sprint;
     db.prepare(`
       UPDATE stories SET
         summary = ?, sprint = ?, status = ?, assignee_id = ?,
@@ -166,14 +168,24 @@ router.put('/stories/:id', (req, res) => {
       WHERE id = ?
     `).run(
       summary ?? existing.summary,
-      sprint ?? existing.sprint,
-      status ?? existing.status,
+      newSprint,
+      newStatus,
       assignee_id !== undefined ? assignee_id : existing.assignee_id,
       story_points ?? existing.story_points,
       release_date !== undefined ? release_date : existing.release_date,
       feature_id !== undefined ? feature_id : existing.feature_id,
       req.params.id
     );
+
+    // Also update the latest story_sprint_history entry so sprint views reflect the change
+    db.prepare(`
+      UPDATE story_sprint_history SET status = ?
+      WHERE id = (
+        SELECT id FROM story_sprint_history
+        WHERE story_id = ? AND sprint = ?
+        ORDER BY imported_at DESC LIMIT 1
+      )
+    `).run(newStatus, req.params.id, newSprint);
 
     const story = db.prepare(`
       SELECT s.*, tm.name AS assignee_name,
