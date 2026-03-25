@@ -1,18 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Pencil, Trash2, X, RefreshCw, Zap, CheckCircle, Clock, AlertTriangle, TrendingUp, ChevronUp, ChevronDown, Plus, ChevronRight, MessageSquare, Calendar, Copy, Save, FileText, Shield } from 'lucide-react';
+import { ArrowLeft, Pencil, Trash2, X, Zap, CheckCircle, Clock, AlertTriangle, TrendingUp, Plus, ChevronRight, MessageSquare, Calendar, Copy, Save, FileText, Shield } from 'lucide-react';
 import { ComposedChart, LineChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import api from '../lib/api';
 import { useToast } from '../components/ToastProvider';
 import NotesPanel from '../components/NotesPanel';
-
-const STORY_STATUS_STYLES = {
-  'To Do': 'bg-gray-100 text-gray-700',
-  'In Progress': 'bg-blue-100 text-blue-700',
-  'In Review': 'bg-purple-100 text-purple-700',
-  'Done': 'bg-green-100 text-green-700',
-};
+import StoryTable from '../components/StoryTable';
+import StoryEditModal from '../components/StoryEditModal';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const TABS = [
   { key: 'active', label: 'Active Work' },
@@ -60,6 +56,9 @@ export default function TeamMemberPage() {
   // Modals
   const [showEdit, setShowEdit] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [editingStory, setEditingStory] = useState(null);
+  const [deletingStory, setDeletingStory] = useState(null);
+  const [jiraBaseUrl, setJiraBaseUrl] = useState('');
 
   async function loadData() {
     try {
@@ -81,6 +80,9 @@ export default function TeamMemberPage() {
 
   useEffect(() => {
     loadData();
+    api.get('/settings/jira').then(data => {
+      if (data.base_url) setJiraBaseUrl(data.base_url.replace(/\/+$/, ''));
+    }).catch(() => {});
   }, [id]);
 
   async function handleDelete() {
@@ -90,6 +92,29 @@ export default function TeamMemberPage() {
       navigate('/team');
     } catch {
       toast.error('Failed to delete team member');
+    }
+  }
+
+  async function handleUpdateStory(storyId, data) {
+    try {
+      await api.put(`/stories/${storyId}`, data);
+      toast.success('Story updated');
+      setEditingStory(null);
+      loadData();
+    } catch {
+      toast.error('Failed to update story');
+    }
+  }
+
+  async function handleDeleteStory() {
+    if (!deletingStory) return;
+    try {
+      await api.del(`/stories/${deletingStory.id}`);
+      toast.success('Story deleted');
+      setDeletingStory(null);
+      loadData();
+    } catch {
+      toast.error('Failed to delete story');
     }
   }
 
@@ -202,6 +227,9 @@ export default function TeamMemberPage() {
           stats={stats}
           velocity={velocity}
           projectColorMap={projectColorMap}
+          jiraBaseUrl={jiraBaseUrl}
+          onEdit={setEditingStory}
+          onDelete={setDeletingStory}
         />
       )}
 
@@ -223,28 +251,33 @@ export default function TeamMemberPage() {
 
       {/* Delete Confirmation */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowDeleteConfirm(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Delete Team Member</h3>
-            <p className="text-sm text-gray-600 mb-6">
-              Are you sure you want to delete "{member.name}"? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
-              >
-                Delete Member
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Delete Team Member"
+          message={`Are you sure you want to delete "${member.name}"? This action cannot be undone.`}
+          confirmLabel="Delete Member"
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
+
+      {/* Story Edit Modal */}
+      {editingStory && (
+        <StoryEditModal
+          story={editingStory}
+          onSave={(data) => handleUpdateStory(editingStory.id, data)}
+          onClose={() => setEditingStory(null)}
+        />
+      )}
+
+      {/* Story Delete Confirmation */}
+      {deletingStory && (
+        <ConfirmDialog
+          title="Delete Story"
+          message={`Delete "${deletingStory.summary}"? This cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={handleDeleteStory}
+          onCancel={() => setDeletingStory(null)}
+        />
       )}
     </div>
   );
@@ -270,58 +303,13 @@ function StatCard({ icon, label, value, color, highlight }) {
   );
 }
 
-function ActiveWorkTab({ stories, stats, velocity, projectColorMap }) {
+function ActiveWorkTab({ stories, stats, velocity, projectColorMap, jiraBaseUrl, onEdit, onDelete }) {
   const [statusFilter, setStatusFilter] = useState('All');
-  const [sortCol, setSortCol] = useState(null);
-  const [sortDir, setSortDir] = useState('asc');
 
   const filteredStories = useMemo(() => {
-    let filtered = stories;
-    if (statusFilter !== 'All') {
-      filtered = filtered.filter((s) => s.status === statusFilter);
-    }
-    if (sortCol) {
-      filtered = [...filtered].sort((a, b) => {
-        let aVal = a[sortCol];
-        let bVal = b[sortCol];
-        if (aVal == null) aVal = '';
-        if (bVal == null) bVal = '';
-        if (typeof aVal === 'number' && typeof bVal === 'number') {
-          return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
-        }
-        const cmp = String(aVal).localeCompare(String(bVal));
-        return sortDir === 'asc' ? cmp : -cmp;
-      });
-    }
-    return filtered;
-  }, [stories, statusFilter, sortCol, sortDir]);
-
-  function handleSort(col) {
-    if (sortCol === col) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortCol(col);
-      setSortDir('asc');
-    }
-  }
-
-  function SortIcon({ col }) {
-    if (sortCol !== col) return <ChevronUp size={12} className="text-gray-300" />;
-    return sortDir === 'asc'
-      ? <ChevronUp size={12} className="text-blue-600" />
-      : <ChevronDown size={12} className="text-blue-600" />;
-  }
-
-  const columns = [
-    { key: 'key', label: 'Key' },
-    { key: 'summary', label: 'Summary' },
-    { key: 'feature_name', label: 'Feature' },
-    { key: 'project_name', label: 'Project' },
-    { key: 'sprint', label: 'Sprint' },
-    { key: 'status', label: 'Status' },
-    { key: 'story_points', label: 'Points' },
-    { key: 'carry_over_count', label: 'Carry-overs' },
-  ];
+    if (statusFilter === 'All') return stories;
+    return stories.filter((s) => s.status === statusFilter);
+  }, [stories, statusFilter]);
 
   return (
     <div>
@@ -387,59 +375,33 @@ function ActiveWorkTab({ stories, stats, velocity, projectColorMap }) {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-8">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  {columns.map((col) => (
-                    <th
-                      key={col.key}
-                      onClick={() => handleSort(col.key)}
-                      className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 py-3 cursor-pointer hover:text-gray-700 select-none"
-                    >
-                      <span className="inline-flex items-center gap-1">
-                        {col.label}
-                        <SortIcon col={col.key} />
-                      </span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredStories.map((story) => (
-                  <tr key={story.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-xs font-mono text-gray-600">{story.key}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">{story.summary}</td>
-                    <td className="px-4 py-3 text-xs text-gray-600">{story.feature_name || '—'}</td>
-                    <td className="px-4 py-3">
-                      {story.project_name ? (
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${projectColorMap[story.project_name]?.badge || 'bg-gray-100 text-gray-700'}`}>
-                          {story.project_name}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600">{story.sprint || '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STORY_STATUS_STYLES[story.status] || 'bg-gray-100 text-gray-700'}`}>
-                        {story.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600">{story.story_points ?? '—'}</td>
-                    <td className="px-4 py-3">
-                      {story.carry_over_count > 0 ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
-                          <RefreshCw size={10} />
-                          {story.carry_over_count}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">0</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <StoryTable
+            stories={filteredStories}
+            columns={[
+              { key: 'key', label: 'Key', align: 'left' },
+              { key: 'summary', label: 'Summary', align: 'left' },
+              { key: 'feature_name', label: 'Feature', align: 'left' },
+              { key: 'project_name', label: 'Project', align: 'left' },
+              { key: 'sprint', label: 'Sprint', align: 'left' },
+              { key: 'status', label: 'Status', align: 'left' },
+              { key: 'story_points', label: 'Points', align: 'right' },
+              { key: 'carry_over_count', label: 'Carry-overs', align: 'right' },
+              { key: 'actions', label: 'Actions', align: 'center', sortable: false },
+            ]}
+            defaultSort={{ key: 'status', direction: 'asc' }}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            jiraBaseUrl={jiraBaseUrl}
+            renderCell={{
+              project_name: (story) => (
+                story.project_name ? (
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${projectColorMap[story.project_name]?.badge || 'bg-gray-100 text-gray-700'}`}>
+                    {story.project_name}
+                  </span>
+                ) : <span className="text-gray-400">—</span>
+              ),
+            }}
+          />
         </div>
       )}
 

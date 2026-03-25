@@ -11,6 +11,8 @@ import { useToast } from '../components/ToastProvider';
 import CreateProjectModal from '../components/CreateProjectModal';
 import NotesPanel from '../components/NotesPanel';
 import StoryEditModal from '../components/StoryEditModal';
+import StoryTable from '../components/StoryTable';
+import ConfirmDialog from '../components/ConfirmDialog';
 import TiptapEditor from '../components/TiptapEditor';
 
 const STATUS_STYLES = {
@@ -59,12 +61,6 @@ const PRIORITY_STYLES = {
   low: 'bg-gray-100 text-gray-600',
 };
 
-const STORY_STATUS_STYLES = {
-  'To Do': 'bg-gray-100 text-gray-700',
-  'In Progress': 'bg-blue-100 text-blue-700',
-  'In Review': 'bg-purple-100 text-purple-700',
-  'Done': 'bg-green-100 text-green-700',
-};
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
@@ -657,70 +653,29 @@ function FeatureRow({ feature, isExpanded, progress, stories, isLoadingStories, 
                 ) : stories.length === 0 ? (
                   <p className="text-sm text-gray-400 py-4 text-center">No stories for this feature.</p>
                 ) : (
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2">Key</th>
-                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2">Summary</th>
-                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2">Sprint</th>
-                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2">Status</th>
-                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2">Assignee</th>
-                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2">Points</th>
-                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2">Release</th>
-                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2">Carry-overs</th>
-                        <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider pb-2">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {stories.map((story) => (
-                        <tr key={story.id} className="border-b border-gray-100 last:border-0">
-                          <td className="py-2 pr-4 text-xs font-mono text-gray-600">{story.key}</td>
-                          <td className="py-2 pr-4 text-sm text-gray-900 max-w-xs truncate">{story.summary}</td>
-                          <td className="py-2 pr-4 text-xs text-gray-600">{story.sprint || '—'}</td>
-                          <td className="py-2 pr-4">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STORY_STATUS_STYLES[story.status] || 'bg-gray-100 text-gray-700'}`}>
-                              {story.status}
-                            </span>
-                          </td>
-                          <td className="py-2 pr-4 text-xs text-gray-600">{story.assignee_name || '—'}</td>
-                          <td className="py-2 pr-4 text-xs text-gray-600">{story.story_points ?? '—'}</td>
-                          <td className="py-2 pr-4 text-xs text-gray-600">
-                            {story.release_date
-                              ? new Date(story.release_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                              : '—'}
-                          </td>
-                          <td className="py-2 pr-4">
-                            {story.carry_over_count > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-medium bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
-                                <RefreshCw size={10} />
-                                {story.carry_over_count}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-gray-400">0</span>
-                            )}
-                          </td>
-                          <td className="py-2 pr-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                onClick={() => onEditStory(story)}
-                                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                                title="Edit story"
-                              >
-                                <Pencil size={12} />
-                              </button>
-                              <button
-                                onClick={() => onDeleteStory(story)}
-                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                title="Delete story"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <StoryTable
+                    stories={stories}
+                    columns={[
+                      { key: 'key', label: 'Key', align: 'left' },
+                      { key: 'summary', label: 'Summary', align: 'left' },
+                      { key: 'sprint', label: 'Sprint', align: 'left' },
+                      { key: 'status', label: 'Status', align: 'left' },
+                      { key: 'assignee', label: 'Assignee', align: 'left' },
+                      { key: 'story_points', label: 'Points', align: 'right' },
+                      { key: 'release_date', label: 'Release', align: 'left' },
+                      { key: 'carry_over_count', label: 'Carry-overs', align: 'right' },
+                      { key: 'actions', label: 'Actions', align: 'center', sortable: false },
+                    ]}
+                    defaultSort={{ key: 'status', direction: 'asc' }}
+                    onEdit={onEditStory}
+                    onDelete={onDeleteStory}
+                    compact
+                    renderCell={{
+                      assignee: (story) => (
+                        <span className="text-gray-600 text-xs">{story.assignee_name || '—'}</span>
+                      ),
+                    }}
+                  />
                 )}
               </div>
             </div>
@@ -731,30 +686,6 @@ function FeatureRow({ feature, isExpanded, progress, stories, isLoadingStories, 
   );
 }
 
-function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCancel }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
-        <p className="text-sm text-gray-600 mb-6">{message}</p>
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function FeatureModal({ projectId, feature, onClose, onSaved }) {
   const isEdit = !!feature;
