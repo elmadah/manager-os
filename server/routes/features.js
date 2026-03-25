@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/init');
+const { doneCondition } = require('../lib/doneCondition');
 
 // GET /api/projects/:projectId/features
 router.get('/projects/:projectId/features', (req, res) => {
@@ -19,10 +20,10 @@ router.get('/projects/:projectId/features', (req, res) => {
       LEFT JOIN (
         SELECT feature_id,
           COUNT(*) AS total,
-          SUM(CASE WHEN status = 'Done' THEN 1 ELSE 0 END) AS completed,
+          SUM(CASE WHEN ${doneCondition('status')} THEN 1 ELSE 0 END) AS completed,
           SUM(CASE WHEN carry_over_count > 0 THEN 1 ELSE 0 END) AS carry_overs,
           SUM(story_points) AS total_points,
-          SUM(CASE WHEN status = 'Done' THEN story_points ELSE 0 END) AS completed_points
+          SUM(CASE WHEN ${doneCondition('status')} THEN story_points ELSE 0 END) AS completed_points
         FROM stories
         GROUP BY feature_id
       ) s ON s.feature_id = f.id
@@ -159,6 +160,8 @@ router.put('/stories/:id', (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Story not found' });
 
     const { summary, sprint, status, assignee_id, story_points, release_date, feature_id } = req.body;
+    const newStatus = status ?? existing.status;
+    const newSprint = sprint ?? existing.sprint;
     db.prepare(`
       UPDATE stories SET
         summary = ?, sprint = ?, status = ?, assignee_id = ?,
@@ -166,14 +169,24 @@ router.put('/stories/:id', (req, res) => {
       WHERE id = ?
     `).run(
       summary ?? existing.summary,
-      sprint ?? existing.sprint,
-      status ?? existing.status,
+      newSprint,
+      newStatus,
       assignee_id !== undefined ? assignee_id : existing.assignee_id,
       story_points ?? existing.story_points,
       release_date !== undefined ? release_date : existing.release_date,
       feature_id !== undefined ? feature_id : existing.feature_id,
       req.params.id
     );
+
+    // Also update the latest story_sprint_history entry so sprint views reflect the change
+    db.prepare(`
+      UPDATE story_sprint_history SET status = ?
+      WHERE id = (
+        SELECT id FROM story_sprint_history
+        WHERE story_id = ? AND sprint = ?
+        ORDER BY imported_at DESC LIMIT 1
+      )
+    `).run(newStatus, req.params.id, newSprint);
 
     const story = db.prepare(`
       SELECT s.*, tm.name AS assignee_name,

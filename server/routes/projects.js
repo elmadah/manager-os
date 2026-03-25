@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/init');
+const { doneCondition } = require('../lib/doneCondition');
 
 // GET /api/projects — list all with feature_count and story_stats
 router.get('/', (req, res) => {
@@ -16,9 +17,9 @@ router.get('/', (req, res) => {
       LEFT JOIN (
         SELECT f.project_id,
           COUNT(st.id) AS total_stories,
-          SUM(CASE WHEN st.status = 'Done' THEN 1 ELSE 0 END) AS completed_stories,
+          SUM(CASE WHEN ${doneCondition('st.status')} THEN 1 ELSE 0 END) AS completed_stories,
           SUM(st.story_points) AS total_points,
-          SUM(CASE WHEN st.status = 'Done' THEN st.story_points ELSE 0 END) AS completed_points
+          SUM(CASE WHEN ${doneCondition('st.status')} THEN st.story_points ELSE 0 END) AS completed_points
         FROM features f
         JOIN stories st ON st.feature_id = f.id
         GROUP BY f.project_id
@@ -70,9 +71,9 @@ router.get('/:id', (req, res) => {
       LEFT JOIN (
         SELECT feature_id,
           COUNT(*) AS total,
-          SUM(CASE WHEN status = 'Done' THEN 1 ELSE 0 END) AS completed,
+          SUM(CASE WHEN ${doneCondition('status')} THEN 1 ELSE 0 END) AS completed,
           SUM(story_points) AS total_points,
-          SUM(CASE WHEN status = 'Done' THEN story_points ELSE 0 END) AS completed_points
+          SUM(CASE WHEN ${doneCondition('status')} THEN story_points ELSE 0 END) AS completed_points
         FROM stories
         GROUP BY feature_id
       ) s ON s.feature_id = f.id

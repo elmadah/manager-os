@@ -4,6 +4,7 @@ import { ArrowLeft, Pencil, Trash2, X, Zap, CheckCircle, Clock, AlertTriangle, T
 import { ComposedChart, LineChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import api from '../lib/api';
+import { getStatusList, getStatusStyle, fetchStatuses } from '../lib/statuses';
 import { useToast } from '../components/ToastProvider';
 import NotesPanel from '../components/NotesPanel';
 import StoryTable from '../components/StoryTable';
@@ -39,7 +40,9 @@ const PROJECT_BG_COLORS = [
   'bg-yellow-50 text-yellow-700',
 ];
 
-const STATUS_OPTIONS = ['All', 'To Do', 'In Progress', 'In Review', 'Done'];
+function getStatusOptions() {
+  return ['All', ...getStatusList().map(s => s.name)];
+}
 
 export default function TeamMemberPage() {
   const { id } = useParams();
@@ -63,6 +66,7 @@ export default function TeamMemberPage() {
 
   async function loadData() {
     try {
+      await fetchStatuses();
       const [memberData, storiesData, velocityData] = await Promise.all([
         api.get(`/team/${id}`),
         api.get(`/team/${id}/stories`),
@@ -363,7 +367,7 @@ function ActiveWorkTab({ stories, stats, velocity, projectColorMap, memberColorM
       {/* Status filter */}
       <div className="flex items-center gap-2 mb-4">
         <span className="text-xs font-medium text-gray-500">Filter:</span>
-        {STATUS_OPTIONS.map((opt) => (
+        {getStatusOptions().map((opt) => (
           <button
             key={opt}
             onClick={() => setStatusFilter(opt)}

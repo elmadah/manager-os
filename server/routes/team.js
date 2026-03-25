@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/init');
+const { doneCondition, isDoneStatusServer } = require('../lib/doneCondition');
 
 // GET /api/team — list all with active story count
 router.get('/', (req, res) => {
@@ -12,7 +13,7 @@ router.get('/', (req, res) => {
       LEFT JOIN (
         SELECT assignee_id, COUNT(*) AS active_stories
         FROM stories
-        WHERE status != 'Done'
+        WHERE NOT ${doneCondition('status')}
         GROUP BY assignee_id
       ) s ON s.assignee_id = tm.id
       ORDER BY tm.name
@@ -77,16 +78,16 @@ router.get('/:id/stories', (req, res) => {
       ORDER BY p.name, f.name, s.created_at
     `).all(req.params.id);
 
-    const inProgress = stories.filter(s => s.status !== 'Done');
-    const carryOver = stories.filter(s => s.status !== 'Done' && s.carry_over_count > 0);
+    const inProgress = stories.filter(s => !isDoneStatusServer(db, s.status));
+    const carryOver = stories.filter(s => !isDoneStatusServer(db, s.status) && s.carry_over_count > 0);
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const completedRecently = stories.filter(s =>
-      s.status === 'Done' && s.updated_at && new Date(s.updated_at) >= thirtyDaysAgo
+      isDoneStatusServer(db, s.status) && s.updated_at && new Date(s.updated_at) >= thirtyDaysAgo
     );
 
-    const completedWithTime = stories.filter(s => s.status === 'Done' && s.sprints_to_complete > 0);
+    const completedWithTime = stories.filter(s => isDoneStatusServer(db, s.status) && s.sprints_to_complete > 0);
     const avgSprintsToComplete = completedWithTime.length > 0
       ? +(completedWithTime.reduce((sum, s) => sum + s.sprints_to_complete, 0) / completedWithTime.length).toFixed(1)
       : 0;
@@ -124,7 +125,7 @@ router.get('/:id/velocity', (req, res) => {
         COUNT(*) AS stories_completed
       FROM story_sprint_history ssh
       JOIN stories s ON s.id = ssh.story_id
-      WHERE ssh.assignee_id = ? AND ssh.status = 'Done'
+      WHERE ssh.assignee_id = ? AND ${doneCondition('ssh.status')}
       GROUP BY ssh.sprint
       ORDER BY ssh.sprint
     `).all(req.params.id);
@@ -135,7 +136,7 @@ router.get('/:id/velocity', (req, res) => {
         COUNT(*) AS carry_over_count
       FROM story_sprint_history ssh
       JOIN stories s ON s.id = ssh.story_id
-      WHERE ssh.assignee_id = ? AND ssh.status != 'Done' AND s.carry_over_count > 0
+      WHERE ssh.assignee_id = ? AND NOT ${doneCondition('ssh.status')} AND s.carry_over_count > 0
       GROUP BY ssh.sprint
       ORDER BY ssh.sprint
     `).all(req.params.id);
@@ -188,7 +189,7 @@ router.get('/:id/performance-review', (req, res) => {
       FROM stories s
       LEFT JOIN features f ON f.id = s.feature_id
       LEFT JOIN projects p ON p.id = f.project_id
-      WHERE s.assignee_id = ? AND s.status = 'Done'
+      WHERE s.assignee_id = ? AND ${doneCondition('s.status')}
         AND s.updated_at >= ? AND s.updated_at <= ?
       ORDER BY s.updated_at DESC
     `).all(req.params.id, from, to + 'T23:59:59');
@@ -231,7 +232,7 @@ router.get('/:id/performance-review', (req, res) => {
         COUNT(*) AS stories_completed
       FROM story_sprint_history ssh
       JOIN stories s ON s.id = ssh.story_id
-      WHERE ssh.assignee_id = ? AND ssh.status = 'Done'
+      WHERE ssh.assignee_id = ? AND ${doneCondition('ssh.status')}
         AND ssh.imported_at >= ? AND ssh.imported_at <= ?
       GROUP BY ssh.sprint
       ORDER BY ssh.sprint

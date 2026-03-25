@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ChevronDown, CheckCircle2, ArrowRightLeft, Sparkles, BarChart3, Search, Pencil, ClipboardList } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import api from '../lib/api';
+import { getStatusStyle } from '../lib/statuses';
 import SprintListView from '../components/SprintListView';
 import StoryEditModal from '../components/StoryEditModal';
 import StandupModal from '../components/StandupModal';
@@ -617,14 +618,8 @@ function renderCell(col, story, onEditStory, onOpenStandup, staleMap, standupHis
 function StatusBadge({ status }) {
   if (!status) return <span className="text-gray-400">—</span>;
 
-  const lower = status.toLowerCase();
-  let classes = 'bg-gray-100 text-gray-700';
-  if (lower === 'in progress' || lower === 'in_progress') classes = 'bg-blue-100 text-blue-700';
-  else if (lower === 'to do' || lower === 'todo' || lower === 'open') classes = 'bg-gray-100 text-gray-700';
-  else if (lower === 'in review' || lower === 'code review') classes = 'bg-purple-100 text-purple-700';
-
   return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${classes}`}>
+    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${getStatusStyle(status)}`}>
       {status}
     </span>
   );

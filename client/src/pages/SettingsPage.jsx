@@ -8,9 +8,11 @@ import {
   Plus,
   Trash2,
   RefreshCw,
+  Download,
 } from 'lucide-react';
 import api from '../lib/api';
 import { useToast } from '../components/ToastProvider';
+import { fetchStatuses } from '../lib/statuses';
 import SyncModal from '../components/SyncModal';
 
 export default function SettingsPage() {
@@ -36,6 +38,10 @@ export default function SettingsPage() {
   // Sync modal state
   const [syncBoard, setSyncBoard] = useState(null);
 
+  // Story statuses state
+  const [storyStatuses, setStoryStatuses] = useState([]);
+  const [importingStatuses, setImportingStatuses] = useState(false);
+
   // Teams state
   const [teams, setTeams] = useState([]);
   const [allMembers, setAllMembers] = useState([]);
@@ -50,6 +56,7 @@ export default function SettingsPage() {
   useEffect(() => {
     loadSettings();
     loadTeams();
+    loadStoryStatuses();
   }, []);
 
   async function loadSettings() {
@@ -146,6 +153,29 @@ export default function SettingsPage() {
       setAllProjects(projectsData);
     } catch {
       // ignore
+    }
+  }
+
+  async function loadStoryStatuses() {
+    try {
+      const data = await api.get('/settings/jira/statuses');
+      setStoryStatuses(data || []);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleImportStatuses() {
+    setImportingStatuses(true);
+    try {
+      const result = await api.post('/settings/jira/import-statuses');
+      setStoryStatuses(result.statuses || []);
+      await fetchStatuses(true); // refresh the shared cache
+      toast.success(`Imported ${result.count} statuses from Jira`);
+    } catch (err) {
+      toast.error(err.data?.error || 'Failed to import statuses');
+    } finally {
+      setImportingStatuses(false);
     }
   }
 
@@ -444,6 +474,63 @@ export default function SettingsPage() {
           configured && (
             <p className="text-sm text-gray-500 text-center py-6">
               No boards registered yet. Add a board to start syncing sprints.
+            </p>
+          )
+        )}
+      </div>
+
+      {/* Story Statuses */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Story Statuses</h2>
+            <p className="text-sm text-gray-500">
+              Import workflow statuses from your Jira instance
+            </p>
+          </div>
+          <button
+            onClick={handleImportStatuses}
+            disabled={importingStatuses || !configured}
+            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm flex items-center gap-1.5 disabled:opacity-50"
+          >
+            {importingStatuses ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            Import from Jira
+          </button>
+        </div>
+
+        {!configured && (
+          <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+            Save your Jira connection settings above before importing statuses.
+          </p>
+        )}
+
+        {storyStatuses.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {storyStatuses.map((s) => {
+              const style =
+                s.category === 'done'
+                  ? 'bg-green-100 text-green-700 border-green-200'
+                  : s.category === 'new'
+                    ? 'bg-gray-100 text-gray-700 border-gray-200'
+                    : 'bg-blue-100 text-blue-700 border-blue-200';
+              return (
+                <span
+                  key={s.id}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border ${style}`}
+                >
+                  {s.name}
+                </span>
+              );
+            })}
+          </div>
+        ) : (
+          configured && (
+            <p className="text-sm text-gray-500 text-center py-6">
+              No statuses imported yet. Click "Import from Jira" to pull your workflow statuses.
             </p>
           )
         )}

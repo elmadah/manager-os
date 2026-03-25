@@ -156,3 +156,11 @@ CREATE TABLE IF NOT EXISTS standup_entries (
 CREATE INDEX IF NOT EXISTS idx_standup_entries_date ON standup_entries(standup_date);
 CREATE INDEX IF NOT EXISTS idx_standup_entries_member ON standup_entries(team_member_id);
 CREATE INDEX IF NOT EXISTS idx_standup_entries_story ON standup_entries(story_id);
+
+CREATE TABLE IF NOT EXISTS story_statuses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  category TEXT NOT NULL,
+  display_order INTEGER DEFAULT 0,
+  imported_at TEXT DEFAULT (datetime('now'))
+);

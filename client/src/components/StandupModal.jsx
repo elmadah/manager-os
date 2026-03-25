@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import api from '../lib/api';
+import { isDoneStatus } from '../lib/statuses';
 
 const STANDUP_STATUSES = ['In Progress', 'Blocked', 'In Review', 'Done'];
 
@@ -12,7 +13,7 @@ export default function StandupModal({ memberId, memberName, stories, onClose, o
 
   // Filter to non-Done stories assigned to this member in current sprint
   const memberStories = stories.filter(s => {
-    if (s.status?.toLowerCase() === 'done') return false;
+    if (isDoneStatus(s.status)) return false;
     if (s.assignee_id != null) return Number(s.assignee_id) === Number(memberId);
     return s.assignee === memberName;
   });
@@ -54,11 +55,11 @@ export default function StandupModal({ memberId, memberName, stories, onClose, o
 
   function mapStoryStatus(storyStatus) {
     if (!storyStatus) return 'In Progress';
+    if (isDoneStatus(storyStatus)) return 'Done';
     const lower = storyStatus.toLowerCase();
     if (lower === 'in progress' || lower === 'in_progress') return 'In Progress';
     if (lower === 'blocked') return 'Blocked';
     if (lower === 'in review' || lower === 'code review') return 'In Review';
-    if (lower === 'done' || lower === 'closed' || lower === 'resolved') return 'Done';
     return 'In Progress';
   }
 
