@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, X, StickyNote, Search } from 'lucide-react';
 import TiptapEditor from './TiptapEditor';
 import ReactMarkdown from 'react-markdown';
 import api from '../lib/api';
+import useAutosave from '../hooks/useAutosave';
 
 const CATEGORIES = [
   { key: 'all', label: 'All' },
@@ -235,6 +236,8 @@ export default function NotesPanel({ projectId, featureId, teamMemberId }) {
                 teamMembers={teamMembers}
                 onSave={handleSaved}
                 onCancel={handleCancel}
+                onNoteCreated={(created) => setEditingNote(created)}
+                onNoteSaved={() => loadNotes()}
               />
             </div>
           ) : selectedNote ? (
@@ -333,7 +336,7 @@ export default function NotesPanel({ projectId, featureId, teamMemberId }) {
   );
 }
 
-function NoteEditor({ note, projectId, featureId, teamMemberId, projects, features, teamMembers, onSave, onCancel }) {
+function NoteEditor({ note, projectId, featureId, teamMemberId, projects, features, teamMembers, onSave, onCancel, onNoteCreated, onNoteSaved }) {
   const isEdit = !!note;
   const [form, setForm] = useState({
     content: note?.content || '',
@@ -345,6 +348,32 @@ function NoteEditor({ note, projectId, featureId, teamMemberId, projects, featur
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [localFeatures, setLocalFeatures] = useState(features);
+
+  const { saveStatus, createdNote, flushSave } = useAutosave({
+    editingNote: note,
+    content: form.content,
+    contextDefaults: {
+      category: form.category,
+      projectId: projectId || form.project_id || null,
+      featureId: featureId || form.feature_id || null,
+      teamMemberId: teamMemberId || form.team_member_id || null,
+    },
+  });
+
+  // When autosave creates a new note, notify parent
+  useEffect(() => {
+    if (createdNote && onNoteCreated) {
+      onNoteCreated(createdNote);
+      if (onNoteSaved) onNoteSaved();
+    }
+  }, [createdNote]);
+
+  // When autosave completes a save for existing notes, refresh list
+  useEffect(() => {
+    if (saveStatus === 'saved' && onNoteSaved && note) {
+      onNoteSaved();
+    }
+  }, [saveStatus]);
 
   useEffect(() => {
     if (form.project_id) {
@@ -397,8 +426,17 @@ function NoteEditor({ note, projectId, featureId, teamMemberId, projects, featur
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit Note' : 'New Note'}</h3>
-        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit Note' : 'New Note'}</h3>
+          <span
+            className={`text-xs text-gray-400 transition-opacity duration-300 ${
+              saveStatus === 'idle' ? 'opacity-0' : 'opacity-100'
+            }`}
+          >
+            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : ''}
+          </span>
+        </div>
+        <button onClick={() => { flushSave(); onCancel(); }} className="text-gray-400 hover:text-gray-600">
           <X size={20} />
         </button>
       </div>
