@@ -26,6 +26,30 @@
   outline-offset: 2px;
 }
 
+/* Highlight — uses inline data-color style from tiptap multicolor */
+.tiptap-editor .ProseMirror mark,
+.prose mark {
+  border-radius: 2px;
+  padding: 0.1em 0.15em;
+  color: inherit;
+}
+
+/* Link — editor and rendered view */
+.tiptap-editor .ProseMirror .editor-link,
+.tiptap-editor .ProseMirror a,
+.prose a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.tiptap-editor .ProseMirror .editor-link:hover,
+.tiptap-editor .ProseMirror a:hover,
+.prose a:hover {
+  color: #1d4ed8;
+}
+
 /* Bubble Menu (floating toolbar on selection) */
 .bubble-menu {
   display: flex;
