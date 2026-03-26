@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { StickyNote, Plus, Search, Pencil, Trash2, X } from 'lucide-react';
+import { StickyNote, Plus, Search, Pencil, Trash2, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import TiptapEditor from '../components/TiptapEditor';
 import ReactMarkdown from 'react-markdown';
 import api from '../lib/api';
@@ -43,6 +43,7 @@ export default function NotesPage() {
   const [showEditor, setShowEditor] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [projects, setProjects] = useState([]);
   const [features, setFeatures] = useState([]);
@@ -185,6 +186,13 @@ export default function NotesPage() {
 
       {/* Search + filters bar */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <button
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          title={sidebarCollapsed ? 'Show notes list' : 'Hide notes list'}
+        >
+          {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </button>
         <div className="relative w-64">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -227,6 +235,7 @@ export default function NotesPage() {
       {/* Main layout */}
       <div className="flex gap-4" style={{ height: 'calc(100vh - 230px)' }}>
         {/* Sidebar */}
+        {!sidebarCollapsed && (
         <div className="w-80 shrink-0 flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden">
           {/* Notes list */}
           <div className="flex-1 overflow-y-auto">
@@ -271,6 +280,7 @@ export default function NotesPage() {
             )}
           </div>
         </div>
+        )}
 
         {/* Main content */}
         <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden">
