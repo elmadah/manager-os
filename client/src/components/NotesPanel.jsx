@@ -139,10 +139,27 @@ export default function NotesPanel({ projectId, featureId, teamMemberId }) {
     setEditingNote(null);
   }
 
-  function getPreview(content) {
-    if (!content) return '';
-    const plain = content.replace(/<[^>]*>/g, '').replace(/[#*_~`>\-\[\]()!]/g, '').trim();
-    return plain.length > 100 ? plain.slice(0, 100) + '...' : plain;
+  function extractTitleAndPreview(content) {
+    if (!content) return { title: '', preview: '' };
+    // Try to extract first heading (h1 or h2) from HTML
+    const headingMatch = content.match(/<h[12][^>]*>(.*?)<\/h[12]>/i);
+    const stripHtmlAndMd = (str) => str.replace(/<[^>]*>/g, '').replace(/[#*_~`>\-\[\]()!]/g, '').trim();
+    if (headingMatch) {
+      const title = stripHtmlAndMd(headingMatch[1]);
+      const rest = stripHtmlAndMd(content.replace(headingMatch[0], ''));
+      return {
+        title: title.length > 80 ? title.slice(0, 80) + '...' : title,
+        preview: rest.length > 80 ? rest.slice(0, 80) + '...' : rest,
+      };
+    }
+    // Fallback: first 50 chars as title, next 80 as preview
+    const plain = stripHtmlAndMd(content);
+    const title = plain.slice(0, 50);
+    const preview = plain.slice(50, 130);
+    return {
+      title: title + (plain.length > 50 ? '...' : ''),
+      preview: preview ? (preview + (plain.length > 130 ? '...' : '')) : '',
+    };
   }
 
   const formatDate = (dateStr) =>
@@ -207,9 +224,15 @@ export default function NotesPanel({ projectId, featureId, teamMemberId }) {
                       <span className="text-[10px] text-purple-600 truncate">{note.feature_name}</span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-700 line-clamp-2 leading-snug">
-                    {getPreview(note.content)}
-                  </p>
+                  {(() => {
+                    const { title, preview } = extractTitleAndPreview(note.content);
+                    return (
+                      <>
+                        <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{title}</p>
+                        {preview && <p className="text-xs text-gray-500 truncate leading-snug">{preview}</p>}
+                      </>
+                    );
+                  })()}
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-[10px] text-gray-400">{formatDate(note.updated_at)}</span>
                     {note.team_member_name && (
