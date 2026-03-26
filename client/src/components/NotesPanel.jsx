@@ -246,9 +246,9 @@ export default function NotesPanel({ projectId, featureId, teamMemberId }) {
         </div>
 
         {/* Main content */}
-        <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 overflow-y-auto">
+        <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden">
           {showEditor ? (
-            <div className="p-6">
+            <div className="flex flex-col flex-1 min-h-0">
               <NoteEditor
                 note={editingNote}
                 projectId={projectId}
@@ -264,7 +264,7 @@ export default function NotesPanel({ projectId, featureId, teamMemberId }) {
               />
             </div>
           ) : selectedNote ? (
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto flex-1">
               {/* Note header */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -447,52 +447,33 @@ function NoteEditor({ note, projectId, featureId, teamMemberId, projects, featur
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit Note' : 'New Note'}</h3>
-          <span
-            className={`text-xs text-gray-400 transition-opacity duration-300 ${
-              saveStatus === 'idle' ? 'opacity-0' : 'opacity-100'
-            }`}
-          >
-            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : ''}
-          </span>
-        </div>
-        <button onClick={() => { flushSave(); onCancel(); }} className="text-gray-400 hover:text-gray-600">
-          <X size={20} />
-        </button>
-      </div>
-
+    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
       {error && (
-        <div className="mb-3 p-2 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
+        <div className="mx-6 mt-3 p-2 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
-          <select
-            name="category"
-            value={form.category}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-          >
-            {CATEGORIES.filter((c) => c.key !== 'all').map((cat) => (
-              <option key={cat.key} value={cat.key}>{cat.label}</option>
-            ))}
-          </select>
-        </div>
+      <TiptapEditor
+        content={form.content}
+        onChange={(html) => setForm((f) => ({ ...f, content: html }))}
+        placeholder="Write your note..."
+      />
 
-        <div>
-          <label className="text-xs font-medium text-gray-600 mb-1 block">Content *</label>
-          <TiptapEditor
-            content={form.content}
-            onChange={(html) => setForm((f) => ({ ...f, content: html }))}
-            placeholder="Write your note..."
-          />
-        </div>
+      <div className="px-6 pb-4 pt-2 border-t border-gray-100 space-y-3 shrink-0">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
+            <select
+              name="category"
+              value={form.category}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            >
+              {CATEGORIES.filter((c) => c.key !== 'all').map((cat) => (
+                <option key={cat.key} value={cat.key}>{cat.label}</option>
+              ))}
+            </select>
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {!projectId && (
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Project</label>
@@ -546,10 +527,17 @@ function NoteEditor({ note, projectId, featureId, teamMemberId, projects, featur
           )}
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex items-center justify-end gap-2">
+          <span
+            className={`text-xs text-gray-400 mr-auto transition-opacity duration-300 ${
+              saveStatus === 'idle' ? 'opacity-0' : 'opacity-100'
+            }`}
+          >
+            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : ''}
+          </span>
           <button
             type="button"
-            onClick={onCancel}
+            onClick={() => { flushSave(); onCancel(); }}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
           >
             Cancel
@@ -562,7 +550,7 @@ function NoteEditor({ note, projectId, featureId, teamMemberId, projects, featur
             {submitting ? 'Saving...' : isEdit ? 'Save Changes' : 'Save Note'}
           </button>
         </div>
-      </form>
-    </div>
+      </div>
+    </form>
   );
 }
