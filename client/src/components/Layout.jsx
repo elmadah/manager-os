@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Columns3,
@@ -7,14 +7,9 @@ import {
   CheckSquare,
   AlertTriangle,
   StickyNote,
-  Upload,
   Newspaper,
-  Download,
   Settings,
 } from 'lucide-react';
-import { useToast } from './ToastProvider';
-
-const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -25,30 +20,11 @@ const navItems = [
   { to: '/blockers', label: 'Blockers', icon: AlertTriangle },
   { to: '/notes', label: 'Notes', icon: StickyNote },
   { to: '/digest', label: 'Digest', icon: Newspaper },
-  { to: '/import', label: 'Import', icon: Upload },
 ];
 
 export default function Layout() {
-  const toast = useToast();
-
-  async function handleExport() {
-    try {
-      const res = await fetch(`${BASE_URL}/export`);
-      if (!res.ok) throw new Error('Export failed');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `manager-os-export-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success('Data exported successfully');
-    } catch {
-      toast.error('Failed to export data');
-    }
-  }
+  const location = useLocation();
+  const isSettingsActive = location.pathname.startsWith('/settings');
 
   return (
     <div className="flex min-h-screen">
@@ -79,24 +55,15 @@ export default function Layout() {
         <div className="px-3 py-4 border-t border-slate-700 space-y-1">
           <NavLink
             to="/settings"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-slate-700 text-white'
-                  : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
-              }`
-            }
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isSettingsActive
+                ? 'bg-slate-700 text-white'
+                : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+            }`}
           >
             <Settings className="h-5 w-5" />
             Settings
           </NavLink>
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-700/50 hover:text-white transition-colors w-full"
-          >
-            <Download className="h-5 w-5" />
-            Export Data
-          </button>
         </div>
       </aside>
       <main className="ml-64 flex-1 bg-gray-50 min-h-screen p-8">
