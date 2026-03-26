@@ -1,8 +1,13 @@
 import { useState, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Upload, FileText, X, AlertTriangle, Check, Loader2, Filter, DatabaseBackup, ChevronDown, ChevronRight, Info } from 'lucide-react';
+import { useNavigate, NavLink } from 'react-router-dom';
+import { Upload, FileText, X, AlertTriangle, Check, Loader2, Filter, DatabaseBackup, ChevronDown, ChevronRight, Info, Download } from 'lucide-react';
 import api from '../lib/api';
 import { useToast } from '../components/ToastProvider';
+
+const SETTINGS_TABS = [
+  { to: '/settings', label: 'General', end: true },
+  { to: '/settings/import-export', label: 'Import & Export' },
+];
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -309,9 +314,68 @@ export default function ImportPage() {
     );
   }
 
+  async function handleExport() {
+    try {
+      const res = await fetch(`${BASE_URL}/export`);
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `manager-os-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Data exported successfully');
+    } catch {
+      toast.error('Failed to export data');
+    }
+  }
+
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Import Stories</h1>
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">Settings</h1>
+
+      {/* Sub-navigation tabs */}
+      <div className="flex gap-1 mb-6 border-b border-gray-200">
+        {SETTINGS_TABS.map((tab) => (
+          <NavLink
+            key={tab.to}
+            to={tab.to}
+            end={tab.end}
+            className={({ isActive }) =>
+              `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                isActive
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`
+            }
+          >
+            {tab.label}
+          </NavLink>
+        ))}</div>
+
+      {/* Export Data */}
+      <div className="mb-6 bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-50 rounded-lg">
+            <Download className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Export Data</h3>
+            <p className="text-xs text-gray-500">Download all your data as a JSON backup file</p>
+          </div>
+        </div>
+        <button
+          onClick={handleExport}
+          className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100"
+        >
+          Export JSON
+        </button>
+      </div>
+
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Import Stories</h2>
 
       {error && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">

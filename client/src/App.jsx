@@ -28,8 +28,8 @@ export default function App() {
           <Route path="/blockers" element={<BlockersPage />} />
           <Route path="/notes" element={<NotesPage />} />
           <Route path="/digest" element={<DigestPage />} />
-          <Route path="/import" element={<ImportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/import-export" element={<ImportPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
