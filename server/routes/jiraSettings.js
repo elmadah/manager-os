@@ -487,4 +487,38 @@ router.post('/import-statuses', async (req, res) => {
   }
 });
 
+// POST /api/settings/jira/statuses — manually create a status
+router.post('/statuses', (req, res) => {
+  try {
+    const { name, category } = req.body;
+    if (!name || !category) {
+      return res.status(400).json({ error: 'name and category are required' });
+    }
+    if (!['new', 'indeterminate', 'done'].includes(category)) {
+      return res.status(400).json({ error: 'category must be new, indeterminate, or done' });
+    }
+    const existing = db.prepare('SELECT id FROM story_statuses WHERE name = ?').get(name);
+    if (existing) {
+      return res.status(409).json({ error: 'A status with that name already exists' });
+    }
+    const maxOrder = db.prepare('SELECT MAX(display_order) as max_order FROM story_statuses').get();
+    const displayOrder = (maxOrder?.max_order ?? -1) + 1;
+    db.prepare('INSERT INTO story_statuses (name, category, display_order) VALUES (?, ?, ?)').run(name, category, displayOrder);
+    const statuses = db.prepare('SELECT * FROM story_statuses ORDER BY display_order, name').all();
+    res.json(statuses);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/settings/jira/statuses — delete all statuses
+router.delete('/statuses', (req, res) => {
+  try {
+    db.prepare('DELETE FROM story_statuses').run();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

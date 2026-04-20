@@ -48,6 +48,10 @@ export default function SettingsPage() {
   // Story statuses state
   const [storyStatuses, setStoryStatuses] = useState([]);
   const [importingStatuses, setImportingStatuses] = useState(false);
+  const [showAddStatus, setShowAddStatus] = useState(false);
+  const [newStatusName, setNewStatusName] = useState('');
+  const [newStatusCategory, setNewStatusCategory] = useState('new');
+  const [addingStatus, setAddingStatus] = useState(false);
 
   // Teams state
   const [teams, setTeams] = useState([]);
@@ -183,6 +187,39 @@ export default function SettingsPage() {
       toast.error(err.data?.error || 'Failed to import statuses');
     } finally {
       setImportingStatuses(false);
+    }
+  }
+
+  async function handleAddStatus() {
+    if (!newStatusName.trim()) return;
+    setAddingStatus(true);
+    try {
+      const statuses = await api.post('/settings/jira/statuses', {
+        name: newStatusName.trim(),
+        category: newStatusCategory,
+      });
+      setStoryStatuses(statuses);
+      await fetchStatuses(true);
+      setNewStatusName('');
+      setNewStatusCategory('new');
+      setShowAddStatus(false);
+      toast.success('Status created');
+    } catch (err) {
+      toast.error(err.data?.error || 'Failed to create status');
+    } finally {
+      setAddingStatus(false);
+    }
+  }
+
+  async function handleDeleteAllStatuses() {
+    if (!confirm('Delete all story statuses? This cannot be undone.')) return;
+    try {
+      await api.del('/settings/jira/statuses');
+      setStoryStatuses([]);
+      await fetchStatuses(true);
+      toast.success('All statuses deleted');
+    } catch (err) {
+      toast.error(err.data?.error || 'Failed to delete statuses');
     }
   }
 
@@ -511,27 +548,83 @@ export default function SettingsPage() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Story Statuses</h2>
             <p className="text-sm text-gray-500">
-              Import workflow statuses from your Jira instance
+              Manage workflow statuses manually or import from Jira
             </p>
           </div>
-          <button
-            onClick={handleImportStatuses}
-            disabled={importingStatuses || !configured}
-            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm flex items-center gap-1.5 disabled:opacity-50"
-          >
-            {importingStatuses ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Download className="w-4 h-4" />
+          <div className="flex items-center gap-1.5 shrink-0">
+            {storyStatuses.length > 0 && (
+              <button
+                onClick={handleDeleteAllStatuses}
+                className="px-2 py-1 text-red-600 rounded hover:bg-red-50 text-xs flex items-center gap-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete All
+              </button>
             )}
-            Import from Jira
-          </button>
+            <button
+              onClick={() => setShowAddStatus(true)}
+              className="px-2.5 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-xs flex items-center gap-1 whitespace-nowrap"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Status
+            </button>
+            <button
+              onClick={handleImportStatuses}
+              disabled={importingStatuses || !configured}
+              className="px-2.5 py-1 bg-gray-100 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-200 font-medium text-xs flex items-center gap-1 disabled:opacity-50 whitespace-nowrap"
+            >
+              {importingStatuses ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              Import from Jira
+            </button>
+          </div>
         </div>
 
-        {!configured && (
-          <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-            Save your Jira connection settings above before importing statuses.
-          </p>
+        {showAddStatus && (
+          <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Status Name</label>
+                <input
+                  type="text"
+                  value={newStatusName}
+                  onChange={(e) => setNewStatusName(e.target.value)}
+                  placeholder="e.g. In QA"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  autoFocus
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddStatus()}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
+                <select
+                  value={newStatusCategory}
+                  onChange={(e) => setNewStatusCategory(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="new">To Do</option>
+                  <option value="indeterminate">In Progress</option>
+                  <option value="done">Done</option>
+                </select>
+              </div>
+              <button
+                onClick={handleAddStatus}
+                disabled={addingStatus || !newStatusName.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
+              >
+                {addingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add'}
+              </button>
+              <button
+                onClick={() => { setShowAddStatus(false); setNewStatusName(''); }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         )}
 
         {storyStatuses.length > 0 ? (
@@ -554,11 +647,9 @@ export default function SettingsPage() {
             })}
           </div>
         ) : (
-          configured && (
-            <p className="text-sm text-gray-500 text-center py-6">
-              No statuses imported yet. Click "Import from Jira" to pull your workflow statuses.
-            </p>
-          )
+          <p className="text-sm text-gray-500 text-center py-6">
+            No statuses yet. Add statuses manually or import from Jira.
+          </p>
         )}
       </div>
 
