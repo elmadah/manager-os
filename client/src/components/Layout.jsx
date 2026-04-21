@@ -85,7 +85,7 @@ export default function Layout() {
         </div>
       </aside>
       <main
-        className={`flex-1 bg-gray-50 min-h-screen p-8 transition-all duration-300 ${
+        className={`flex-1 bg-gray-50 min-h-screen p-8 transition-all duration-300 overflow-x-hidden ${
           collapsed ? 'ml-16' : 'ml-64'
         }`}
       >
