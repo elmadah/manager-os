@@ -104,4 +104,112 @@ router.post('/', (req, res) => {
   }
 });
 
+// GET /api/capacity-plans/:id — full plan, members, leave, and computed totals
+router.get('/:id', (req, res) => {
+  try {
+    const planId = Number(req.params.id);
+    const plan = db.prepare(`
+      SELECT cp.*, t.name AS team_name
+      FROM capacity_plans cp
+      LEFT JOIN teams t ON t.id = cp.team_id
+      WHERE cp.id = ?
+    `).get(planId);
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+
+    const members = db.prepare(`
+      SELECT cpm.*, tm.name AS member_name, tm.role, tm.color,
+        (SELECT COUNT(*) FROM team_member_assignments WHERE team_id = ? AND member_id = cpm.member_id) AS still_on_team
+      FROM capacity_plan_members cpm
+      JOIN team_members tm ON tm.id = cpm.member_id
+      WHERE cpm.plan_id = ?
+      ORDER BY tm.name
+    `).all(plan.team_id, planId);
+
+    const leave = db.prepare(`
+      SELECT cl.*, lt.name AS loan_team_name, lp.name AS loan_project_name
+      FROM capacity_leave cl
+      LEFT JOIN teams lt ON lt.id = cl.loan_team_id
+      LEFT JOIN projects lp ON lp.id = cl.loan_project_id
+      WHERE cl.plan_id = ?
+      ORDER BY cl.member_id, cl.leave_date
+    `).all(planId);
+
+    const workingDays = countWeekdays(plan.start_date, plan.end_date);
+    const hoursPerPoint = getNumber('capacity_hours_per_point');
+    const allocFactor = getNumber('capacity_allocation_factor');
+
+    const leaveByMember = new Map();
+    for (const l of leave) {
+      if (!leaveByMember.has(l.member_id)) leaveByMember.set(l.member_id, []);
+      leaveByMember.get(l.member_id).push(l);
+    }
+
+    const memberTotals = members
+      .filter((m) => !m.is_excluded)
+      .map((m) => {
+        const ml = leaveByMember.get(m.member_id) || [];
+        const plannedLeave = ml.filter((x) => x.is_planned === 1).length;
+        const unplannedLeave = ml.filter((x) => x.is_planned === 0).length;
+        const plannedHours = (workingDays - plannedLeave) * 8;
+        const actualHours = (workingDays - plannedLeave - unplannedLeave) * 8;
+        const theoreticalMax = workingDays * 8;
+        return {
+          member_id: m.member_id,
+          member_name: m.member_name,
+          role: m.role,
+          color: m.color,
+          working_days: workingDays,
+          planned_leave_days: plannedLeave,
+          unplanned_leave_days: unplannedLeave,
+          planned_hours: plannedHours,
+          actual_hours: actualHours,
+          points: Math.round((actualHours / hoursPerPoint) * 10) / 10,
+          required_allocation: Math.round(actualHours * allocFactor),
+          utilization_pct: theoreticalMax > 0 ? Math.round((actualHours / theoreticalMax) * 1000) / 10 : 0,
+        };
+      });
+
+    const teamTotals = memberTotals.reduce(
+      (acc, m) => ({
+        planned_hours: acc.planned_hours + m.planned_hours,
+        actual_hours: acc.actual_hours + m.actual_hours,
+        points: Math.round((acc.points + m.points) * 10) / 10,
+        required_allocation: acc.required_allocation + m.required_allocation,
+        theoretical_max: acc.theoretical_max + m.working_days * 8,
+      }),
+      { planned_hours: 0, actual_hours: 0, points: 0, required_allocation: 0, theoretical_max: 0 }
+    );
+    teamTotals.utilization_pct = teamTotals.theoretical_max > 0
+      ? Math.round((teamTotals.actual_hours / teamTotals.theoretical_max) * 1000) / 10
+      : 0;
+
+    const activeMemberIds = new Set(memberTotals.map((m) => m.member_id));
+    const activeLeave = leave.filter((l) => activeMemberIds.has(l.member_id));
+    const breakdown = { vacation: 0, holiday: 0, sick: 0, loaned: 0, other: 0 };
+    const loanByTeam = {};
+    for (const l of activeLeave) {
+      breakdown[l.leave_type] = (breakdown[l.leave_type] || 0) + 8;
+      if (l.leave_type === 'loaned') {
+        const key = l.loan_team_name || 'Unspecified';
+        loanByTeam[key] = (loanByTeam[key] || 0) + 8;
+      }
+    }
+
+    res.json({
+      ...plan,
+      working_days: workingDays,
+      hours_per_point: hoursPerPoint,
+      allocation_factor: allocFactor,
+      members,
+      leave,
+      member_totals: memberTotals,
+      team_totals: teamTotals,
+      leave_breakdown: breakdown,
+      loan_by_team: loanByTeam,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
