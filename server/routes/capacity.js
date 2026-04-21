@@ -263,4 +263,84 @@ router.delete('/:id', (req, res) => {
   }
 });
 
+// POST /api/capacity-plans/:id/members — add an off-team member to the plan
+router.post('/:id/members', (req, res) => {
+  try {
+    const planId = Number(req.params.id);
+    const { member_id } = req.body;
+    if (!member_id) return res.status(400).json({ error: 'member_id is required' });
+
+    const plan = db.prepare('SELECT id FROM capacity_plans WHERE id = ?').get(planId);
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+
+    const member = db.prepare('SELECT id FROM team_members WHERE id = ?').get(Number(member_id));
+    if (!member) return res.status(404).json({ error: 'Member not found' });
+
+    const existing = db.prepare(
+      'SELECT id FROM capacity_plan_members WHERE plan_id = ? AND member_id = ?'
+    ).get(planId, Number(member_id));
+    if (existing) return res.status(409).json({ error: 'Member already on this plan' });
+
+    db.prepare(
+      'INSERT INTO capacity_plan_members (plan_id, member_id) VALUES (?, ?)'
+    ).run(planId, Number(member_id));
+
+    res.status(201).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/capacity-plans/:id/members/:memberId — toggle exclusion
+router.patch('/:id/members/:memberId', (req, res) => {
+  try {
+    const planId = Number(req.params.id);
+    const memberId = Number(req.params.memberId);
+    const { is_excluded } = req.body;
+    if (is_excluded === undefined) return res.status(400).json({ error: 'is_excluded is required' });
+
+    const existing = db.prepare(
+      'SELECT id FROM capacity_plan_members WHERE plan_id = ? AND member_id = ?'
+    ).get(planId, memberId);
+    if (!existing) return res.status(404).json({ error: 'Member not on this plan' });
+
+    db.prepare(
+      'UPDATE capacity_plan_members SET is_excluded = ? WHERE plan_id = ? AND member_id = ?'
+    ).run(is_excluded ? 1 : 0, planId, memberId);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/capacity-plans/:id/members/:memberId — remove ad-hoc member
+router.delete('/:id/members/:memberId', (req, res) => {
+  try {
+    const planId = Number(req.params.id);
+    const memberId = Number(req.params.memberId);
+
+    const plan = db.prepare('SELECT team_id FROM capacity_plans WHERE id = ?').get(planId);
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+
+    const isOnTeam = db.prepare(
+      'SELECT 1 AS x FROM team_member_assignments WHERE team_id = ? AND member_id = ?'
+    ).get(plan.team_id, memberId);
+    if (isOnTeam) {
+      return res.status(400).json({ error: 'Cannot remove core team member; exclude them instead' });
+    }
+
+    db.prepare(
+      'DELETE FROM capacity_plan_members WHERE plan_id = ? AND member_id = ?'
+    ).run(planId, memberId);
+    db.prepare(
+      'DELETE FROM capacity_leave WHERE plan_id = ? AND member_id = ?'
+    ).run(planId, memberId);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
