@@ -212,4 +212,55 @@ router.get('/:id', (req, res) => {
   }
 });
 
+// PUT /api/capacity-plans/:id — update plan metadata
+router.put('/:id', (req, res) => {
+  try {
+    const planId = Number(req.params.id);
+    const existing = db.prepare('SELECT * FROM capacity_plans WHERE id = ?').get(planId);
+    if (!existing) return res.status(404).json({ error: 'Plan not found' });
+
+    const name = req.body.name !== undefined ? req.body.name : existing.name;
+    const start_date = req.body.start_date !== undefined ? req.body.start_date : existing.start_date;
+    const end_date = req.body.end_date !== undefined ? req.body.end_date : existing.end_date;
+    const jira_sprint_name = req.body.jira_sprint_name !== undefined
+      ? (req.body.jira_sprint_name?.trim() || null)
+      : existing.jira_sprint_name;
+
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Name cannot be empty' });
+    if (start_date > end_date) return res.status(400).json({ error: 'start_date must be on or before end_date' });
+
+    const update = db.transaction(() => {
+      db.prepare(`
+        UPDATE capacity_plans
+        SET name = ?, start_date = ?, end_date = ?, jira_sprint_name = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `).run(name.trim(), start_date, end_date, jira_sprint_name, planId);
+
+      db.prepare(`
+        DELETE FROM capacity_leave
+        WHERE plan_id = ? AND (leave_date < ? OR leave_date > ?)
+      `).run(planId, start_date, end_date);
+    });
+
+    update();
+    const plan = db.prepare('SELECT * FROM capacity_plans WHERE id = ?').get(planId);
+    res.json(plan);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/capacity-plans/:id
+router.delete('/:id', (req, res) => {
+  try {
+    const planId = Number(req.params.id);
+    const existing = db.prepare('SELECT id FROM capacity_plans WHERE id = ?').get(planId);
+    if (!existing) return res.status(404).json({ error: 'Plan not found' });
+    db.prepare('DELETE FROM capacity_plans WHERE id = ?').run(planId);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
