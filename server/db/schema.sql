@@ -187,6 +187,7 @@ CREATE TABLE IF NOT EXISTS capacity_plan_members (
   plan_id INTEGER NOT NULL REFERENCES capacity_plans(id) ON DELETE CASCADE,
   member_id INTEGER NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
   is_excluded INTEGER DEFAULT 0,
+  exclude_from_points INTEGER DEFAULT 0,
   UNIQUE(plan_id, member_id)
 );
 

@@ -158,12 +158,13 @@ router.get('/:id', (req, res) => {
           member_name: m.member_name,
           role: m.role,
           color: m.color,
+          exclude_from_points: !!m.exclude_from_points,
           working_days: workingDays,
           planned_leave_days: plannedLeave,
           unplanned_leave_days: unplannedLeave,
           planned_hours: plannedHours,
           actual_hours: actualHours,
-          points: Math.round((actualHours / hoursPerPoint) * 10) / 10,
+          points: m.exclude_from_points ? 0 : Math.round((actualHours / hoursPerPoint) * 10) / 10,
           required_allocation: Math.round(actualHours * allocFactor),
           utilization_pct: theoreticalMax > 0 ? Math.round((actualHours / theoreticalMax) * 1000) / 10 : 0,
         };
@@ -291,22 +292,28 @@ router.post('/:id/members', (req, res) => {
   }
 });
 
-// PATCH /api/capacity-plans/:id/members/:memberId — toggle exclusion
+// PATCH /api/capacity-plans/:id/members/:memberId — update member flags
 router.patch('/:id/members/:memberId', (req, res) => {
   try {
     const planId = Number(req.params.id);
     const memberId = Number(req.params.memberId);
-    const { is_excluded } = req.body;
-    if (is_excluded === undefined) return res.status(400).json({ error: 'is_excluded is required' });
 
     const existing = db.prepare(
       'SELECT id FROM capacity_plan_members WHERE plan_id = ? AND member_id = ?'
     ).get(planId, memberId);
     if (!existing) return res.status(404).json({ error: 'Member not on this plan' });
 
-    db.prepare(
-      'UPDATE capacity_plan_members SET is_excluded = ? WHERE plan_id = ? AND member_id = ?'
-    ).run(is_excluded ? 1 : 0, planId, memberId);
+    if (req.body.is_excluded !== undefined) {
+      db.prepare(
+        'UPDATE capacity_plan_members SET is_excluded = ? WHERE plan_id = ? AND member_id = ?'
+      ).run(req.body.is_excluded ? 1 : 0, planId, memberId);
+    }
+
+    if (req.body.exclude_from_points !== undefined) {
+      db.prepare(
+        'UPDATE capacity_plan_members SET exclude_from_points = ? WHERE plan_id = ? AND member_id = ?'
+      ).run(req.body.exclude_from_points ? 1 : 0, planId, memberId);
+    }
 
     res.json({ success: true });
   } catch (err) {
