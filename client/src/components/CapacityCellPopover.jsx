@@ -114,13 +114,13 @@ export default function CapacityCellPopover({
         {leaveType === 'loaned' && (
           <div className="space-y-2 p-3 bg-purple-50 border border-purple-200 rounded-lg">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Loaned to team</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Loaned to team (optional)</label>
               <select
                 value={loanTeamId}
                 onChange={(e) => setLoanTeamId(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               >
-                <option value="">Select…</option>
+                <option value="">None</option>
                 {teams.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
@@ -175,7 +175,7 @@ export default function CapacityCellPopover({
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || (leaveType === 'loaned' && !loanTeamId)}
+              disabled={saving}
               className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-1 disabled:opacity-50"
             >
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
