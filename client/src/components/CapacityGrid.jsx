@@ -86,6 +86,17 @@ export default function CapacityGrid({ plan, onChange }) {
     setMenuOpen(null);
   }
 
+  async function toggleExcludeFromPoints(memberId) {
+    const member = plan.members.find((m) => m.member_id === memberId);
+    const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/capacity-plans/${plan.id}/members/${memberId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exclude_from_points: !member.exclude_from_points }),
+    });
+    if (res.ok) onChange();
+    setMenuOpen(null);
+  }
+
   function toggleMenu(memberId, e) {
     if (menuOpen?.memberId === memberId) {
       setMenuOpen(null);
@@ -161,7 +172,9 @@ export default function CapacityGrid({ plan, onChange }) {
                       <span className="text-xs text-gray-400 ml-1">/ {totals.planned_hours}</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-700">{totals.points ?? 0}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-700">
+                    {totals.exclude_from_points ? '—' : (totals.points ?? 0)}
+                  </td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-700">{totals.required_allocation ?? 0}</td>
                 </tr>
               );
@@ -179,6 +192,14 @@ export default function CapacityGrid({ plan, onChange }) {
             left: Math.max(8, menuOpen.rect.right - 176),
           }}
         >
+          <button
+            onClick={() => toggleExcludeFromPoints(menuOpen.memberId)}
+            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            {plan.members.find((m) => m.member_id === menuOpen.memberId)?.exclude_from_points
+              ? 'Include in points'
+              : 'Exclude from points'}
+          </button>
           <button
             onClick={() => excludeMember(menuOpen.memberId)}
             className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"

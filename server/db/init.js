@@ -104,6 +104,9 @@ const db = {
     migrate('jira_boards', 'team_id', 'INTEGER REFERENCES teams(id)');
     migrate('projects', 'team_id', 'INTEGER REFERENCES teams(id)');
 
+    // Capacity plan member flags
+    migrate('capacity_plan_members', 'exclude_from_points', 'INTEGER DEFAULT 0');
+
     // Migrate team_members.team_id data into junction table
     const existing = sqlDb.exec(
       `SELECT id, team_id FROM team_members WHERE team_id IS NOT NULL`
