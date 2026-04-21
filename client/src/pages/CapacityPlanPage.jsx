@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import api from '../lib/api';
 import { useToast } from '../components/ToastProvider';
+import CapacityGrid from '../components/CapacityGrid';
 
 export default function CapacityPlanPage() {
   const { id } = useParams();
@@ -124,10 +125,7 @@ export default function CapacityPlanPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <p className="text-sm text-gray-500">Grid and totals coming in the next tasks.</p>
-        <p className="text-xs text-gray-400 mt-2">Working days: {plan.working_days} · Members: {plan.members.length}</p>
-      </div>
+      <CapacityGrid plan={plan} onChange={load} />
     </div>
   );
 }
