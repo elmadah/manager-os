@@ -53,6 +53,11 @@ export default function SettingsPage() {
   const [newStatusCategory, setNewStatusCategory] = useState('new');
   const [addingStatus, setAddingStatus] = useState(false);
 
+  // Capacity settings state
+  const [capacityHpp, setCapacityHpp] = useState(8);
+  const [capacityAf, setCapacityAf] = useState(0.9);
+  const [savingCapacity, setSavingCapacity] = useState(false);
+
   // Teams state
   const [teams, setTeams] = useState([]);
   const [allMembers, setAllMembers] = useState([]);
@@ -68,7 +73,33 @@ export default function SettingsPage() {
     loadSettings();
     loadTeams();
     loadStoryStatuses();
+    loadCapacitySettings();
   }, []);
+
+  async function loadCapacitySettings() {
+    try {
+      const data = await api.get('/settings/app/capacity');
+      setCapacityHpp(data.capacity_hours_per_point);
+      setCapacityAf(data.capacity_allocation_factor);
+    } catch {
+      // defaults stand
+    }
+  }
+
+  async function handleSaveCapacity() {
+    setSavingCapacity(true);
+    try {
+      await api.put('/settings/app/capacity', {
+        capacity_hours_per_point: Number(capacityHpp),
+        capacity_allocation_factor: Number(capacityAf),
+      });
+      toast.success('Capacity settings saved');
+    } catch (err) {
+      toast.error(err.data?.error || 'Failed to save capacity settings');
+    } finally {
+      setSavingCapacity(false);
+    }
+  }
 
   async function loadSettings() {
     try {
@@ -829,6 +860,54 @@ export default function SettingsPage() {
             No teams yet. Create a team to group members, boards, and projects.
           </p>
         )}
+      </div>
+
+      {/* Capacity planning */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 mt-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-emerald-50 rounded-lg">
+            <Check className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Capacity planning</h2>
+            <p className="text-sm text-gray-500">Global constants used by sprint capacity plans</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Hours per point</label>
+            <input
+              type="number"
+              step="0.5"
+              min="0.5"
+              value={capacityHpp}
+              onChange={(e) => setCapacityHpp(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+            <p className="text-xs text-gray-400 mt-1">Default 8 — one story point = 8 hours</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Allocation factor</label>
+            <input
+              type="number"
+              step="0.05"
+              min="0"
+              max="1"
+              value={capacityAf}
+              onChange={(e) => setCapacityAf(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+            <p className="text-xs text-gray-400 mt-1">Default 0.9 — reserves 10% for meetings/overhead</p>
+          </div>
+        </div>
+        <button
+          onClick={handleSaveCapacity}
+          disabled={savingCapacity}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm flex items-center gap-2 disabled:opacity-50"
+        >
+          {savingCapacity ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+          Save capacity settings
+        </button>
       </div>
 
       {/* Sync Modal */}
