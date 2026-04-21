@@ -1,12 +1,12 @@
 /**
  * Returns a SQL condition string that checks if a column contains a "done" status.
- * Uses the story_statuses table if populated, falls back to status = 'Done'.
+ * Uses the story_statuses table if populated, and always includes standard done statuses (Done, Closed, Resolved).
  *
  * @param {string} column - The SQL column to check (e.g. 'st.status', 'status', 'ssh.status')
  * @returns {string} SQL condition
  */
 function doneCondition(column = 'status') {
-  return `(${column} IN (SELECT name FROM story_statuses WHERE category = 'done') OR (NOT EXISTS(SELECT 1 FROM story_statuses) AND ${column} = 'Done'))`;
+  return `(${column} IN (SELECT name FROM story_statuses WHERE category = 'done') OR LOWER(${column}) IN ('done', 'closed', 'resolved'))`;
 }
 
 /**
@@ -24,11 +24,7 @@ function isDoneStatusServer(db, status) {
     .get('done', status);
   if (row && row.cnt > 0) return true;
 
-  // Check if table has any rows at all
-  const total = db.prepare('SELECT COUNT(*) AS cnt FROM story_statuses').get();
-  if (total && total.cnt > 0) return false;
-
-  // Fallback when no statuses imported
+  // Always match standard done statuses
   return ['done', 'closed', 'resolved'].includes(status.toLowerCase());
 }
 

@@ -120,9 +120,9 @@ export default function CapacityGrid({ plan, onChange }) {
                   {formatCol(d)}
                 </th>
               ))}
-              <th className="px-3 py-2 text-xs text-gray-600 text-right min-w-[100px]">Hours</th>
-              <th className="px-3 py-2 text-xs text-gray-600 text-right min-w-[60px]">Pts</th>
-              <th className="px-3 py-2 text-xs text-gray-600 text-right min-w-[60px]">Req</th>
+              <th className="px-3 py-2 text-xs text-gray-600 text-right min-w-[100px] sticky right-[120px] bg-white z-10 border-l border-gray-200">Hours</th>
+              <th className="px-3 py-2 text-xs text-gray-600 text-right min-w-[60px] sticky right-[60px] bg-white z-10">Pts</th>
+              <th className="px-3 py-2 text-xs text-gray-600 text-right min-w-[60px] sticky right-0 bg-white z-10">Req</th>
             </tr>
           </thead>
           <tbody>
@@ -166,16 +166,16 @@ export default function CapacityGrid({ plan, onChange }) {
                       </td>
                     );
                   })}
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  <td className="px-3 py-2 text-right tabular-nums sticky right-[120px] bg-white z-10 border-l border-gray-200">
                     <span className="text-gray-900 font-medium">{totals.actual_hours ?? 0}</span>
                     {totals.planned_hours !== totals.actual_hours && (
                       <span className="text-xs text-gray-400 ml-1">/ {totals.planned_hours}</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-700">
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-700 sticky right-[60px] bg-white z-10">
                     {totals.exclude_from_points ? '—' : (totals.points ?? 0)}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-700">{totals.required_allocation ?? 0}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-700 sticky right-0 bg-white z-10">{totals.required_allocation ?? 0}</td>
                 </tr>
               );
             })}
