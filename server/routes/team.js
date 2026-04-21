@@ -6,6 +6,9 @@ const { doneCondition, isDoneStatusServer } = require('../lib/doneCondition');
 // GET /api/team — list all with active story count
 router.get('/', (req, res) => {
   try {
+    const includeInactive = req.query.include_inactive === 'true';
+    const activeFilter = includeInactive ? '' : 'WHERE tm.is_active = 1';
+
     const members = db.prepare(`
       SELECT tm.*,
         COALESCE(s.active_stories, 0) AS active_story_count
@@ -16,7 +19,8 @@ router.get('/', (req, res) => {
         WHERE NOT ${doneCondition('status')}
         GROUP BY assignee_id
       ) s ON s.assignee_id = tm.id
-      ORDER BY tm.name
+      ${activeFilter}
+      ORDER BY tm.is_active DESC, tm.name
     `).all();
 
     res.json(members);
@@ -312,13 +316,13 @@ function pickNextColor() {
 // POST /api/team
 router.post('/', (req, res) => {
   try {
-    const { name, role, email, color } = req.body;
+    const { name, role, email, color, level } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
     const assignedColor = color || pickNextColor();
     const result = db.prepare(`
-      INSERT INTO team_members (name, role, email, color) VALUES (?, ?, ?, ?)
-    `).run(name, role || '', email || '', assignedColor);
+      INSERT INTO team_members (name, role, email, color, level) VALUES (?, ?, ?, ?, ?)
+    `).run(name, role || '', email || '', assignedColor, level || '');
 
     const member = db.prepare('SELECT * FROM team_members WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(member);
@@ -333,16 +337,18 @@ router.put('/:id', (req, res) => {
     const existing = db.prepare('SELECT * FROM team_members WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Team member not found' });
 
-    const { name, role, email, color } = req.body;
+    const { name, role, email, color, is_active, level } = req.body;
     db.prepare(`
       UPDATE team_members SET
-        name = ?, role = ?, email = ?, color = ?
+        name = ?, role = ?, email = ?, color = ?, is_active = ?, level = ?
       WHERE id = ?
     `).run(
       name ?? existing.name,
       role ?? existing.role,
       email ?? existing.email,
       color ?? existing.color,
+      is_active !== undefined ? is_active : existing.is_active,
+      level !== undefined ? level : existing.level,
       req.params.id
     );
 

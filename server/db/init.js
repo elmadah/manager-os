@@ -107,6 +107,12 @@ const db = {
     // Capacity plan member flags
     migrate('capacity_plan_members', 'exclude_from_points', 'INTEGER DEFAULT 0');
 
+    // Soft delete for team members
+    migrate('team_members', 'is_active', 'INTEGER DEFAULT 1');
+
+    // Level field for team members (e.g. C11, C12, Contractor)
+    migrate('team_members', 'level', 'TEXT');
+
     // Migrate team_members.team_id data into junction table
     const existing = sqlDb.exec(
       `SELECT id, team_id FROM team_members WHERE team_id IS NOT NULL`
