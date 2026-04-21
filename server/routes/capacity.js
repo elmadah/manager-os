@@ -343,4 +343,148 @@ router.delete('/:id/members/:memberId', (req, res) => {
   }
 });
 
+const VALID_LEAVE_TYPES = ['vacation', 'holiday', 'sick', 'loaned', 'other'];
+
+function resolvePlannedFlag(plan, explicit) {
+  if (explicit !== undefined && explicit !== null) return explicit ? 1 : 0;
+  const today = new Date().toISOString().slice(0, 10);
+  return today <= plan.start_date ? 1 : 0;
+}
+
+// PUT /api/capacity-plans/:id/leave — upsert one (member, date) cell
+router.put('/:id/leave', (req, res) => {
+  try {
+    const planId = Number(req.params.id);
+    const { member_id, leave_date, leave_type, is_planned, loan_team_id, loan_project_id, loan_note } = req.body;
+
+    if (!member_id || !leave_date || !leave_type) {
+      return res.status(400).json({ error: 'member_id, leave_date, leave_type are required' });
+    }
+    if (!VALID_LEAVE_TYPES.includes(leave_type)) {
+      return res.status(400).json({ error: `leave_type must be one of ${VALID_LEAVE_TYPES.join(', ')}` });
+    }
+
+    const plan = db.prepare('SELECT * FROM capacity_plans WHERE id = ?').get(planId);
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+
+    if (leave_date < plan.start_date || leave_date > plan.end_date) {
+      return res.status(400).json({ error: 'leave_date is outside plan date range' });
+    }
+
+    const member = db.prepare(
+      'SELECT 1 AS x FROM capacity_plan_members WHERE plan_id = ? AND member_id = ?'
+    ).get(planId, Number(member_id));
+    if (!member) return res.status(400).json({ error: 'Member is not on this plan' });
+
+    const plannedFlag = resolvePlannedFlag(plan, is_planned);
+    const loanTeam = leave_type === 'loaned' ? (loan_team_id || null) : null;
+    const loanProject = leave_type === 'loaned' ? (loan_project_id || null) : null;
+    const loanNoteValue = leave_type === 'loaned' ? (loan_note || null) : null;
+
+    const existing = db.prepare(
+      'SELECT id FROM capacity_leave WHERE plan_id = ? AND member_id = ? AND leave_date = ?'
+    ).get(planId, Number(member_id), leave_date);
+
+    if (existing) {
+      db.prepare(`
+        UPDATE capacity_leave
+        SET leave_type = ?, is_planned = ?, loan_team_id = ?, loan_project_id = ?, loan_note = ?
+        WHERE id = ?
+      `).run(leave_type, plannedFlag, loanTeam, loanProject, loanNoteValue, existing.id);
+    } else {
+      db.prepare(`
+        INSERT INTO capacity_leave (plan_id, member_id, leave_date, leave_type, is_planned, loan_team_id, loan_project_id, loan_note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(planId, Number(member_id), leave_date, leave_type, plannedFlag, loanTeam, loanProject, loanNoteValue);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/capacity-plans/:id/leave — clear a single cell
+router.delete('/:id/leave', (req, res) => {
+  try {
+    const planId = Number(req.params.id);
+    const { member_id, leave_date } = req.body;
+    if (!member_id || !leave_date) return res.status(400).json({ error: 'member_id and leave_date are required' });
+
+    db.prepare(
+      'DELETE FROM capacity_leave WHERE plan_id = ? AND member_id = ? AND leave_date = ?'
+    ).run(planId, Number(member_id), leave_date);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/capacity-plans/:id/leave/range — bulk upsert across a date range
+router.post('/:id/leave/range', (req, res) => {
+  try {
+    const planId = Number(req.params.id);
+    const { member_id, start_date, end_date, leave_type, is_planned, loan_team_id, loan_project_id, loan_note } = req.body;
+
+    if (!member_id || !start_date || !end_date || !leave_type) {
+      return res.status(400).json({ error: 'member_id, start_date, end_date, leave_type are required' });
+    }
+    if (!VALID_LEAVE_TYPES.includes(leave_type)) {
+      return res.status(400).json({ error: `leave_type must be one of ${VALID_LEAVE_TYPES.join(', ')}` });
+    }
+
+    const plan = db.prepare('SELECT * FROM capacity_plans WHERE id = ?').get(planId);
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+
+    const effectiveStart = start_date < plan.start_date ? plan.start_date : start_date;
+    const effectiveEnd = end_date > plan.end_date ? plan.end_date : end_date;
+    if (effectiveStart > effectiveEnd) {
+      return res.status(400).json({ error: 'Range does not overlap plan dates' });
+    }
+
+    const onPlan = db.prepare(
+      'SELECT 1 AS x FROM capacity_plan_members WHERE plan_id = ? AND member_id = ?'
+    ).get(planId, Number(member_id));
+    if (!onPlan) return res.status(400).json({ error: 'Member is not on this plan' });
+
+    const plannedFlag = resolvePlannedFlag(plan, is_planned);
+    const loanTeam = leave_type === 'loaned' ? (loan_team_id || null) : null;
+    const loanProject = leave_type === 'loaned' ? (loan_project_id || null) : null;
+    const loanNoteValue = leave_type === 'loaned' ? (loan_note || null) : null;
+
+    const { listWeekdays } = require('../lib/capacityDates');
+    const dates = listWeekdays(effectiveStart, effectiveEnd);
+
+    const upsert = db.transaction(() => {
+      const selectStmt = db.prepare(
+        'SELECT id FROM capacity_leave WHERE plan_id = ? AND member_id = ? AND leave_date = ?'
+      );
+      const updateStmt = db.prepare(`
+        UPDATE capacity_leave
+        SET leave_type = ?, is_planned = ?, loan_team_id = ?, loan_project_id = ?, loan_note = ?
+        WHERE id = ?
+      `);
+      const insertStmt = db.prepare(`
+        INSERT INTO capacity_leave (plan_id, member_id, leave_date, leave_type, is_planned, loan_team_id, loan_project_id, loan_note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const d of dates) {
+        const existing = selectStmt.get(planId, Number(member_id), d);
+        if (existing) {
+          updateStmt.run(leave_type, plannedFlag, loanTeam, loanProject, loanNoteValue, existing.id);
+        } else {
+          insertStmt.run(planId, Number(member_id), d, leave_type, plannedFlag, loanTeam, loanProject, loanNoteValue);
+        }
+      }
+    });
+
+    upsert();
+    res.json({ success: true, applied_days: dates.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
