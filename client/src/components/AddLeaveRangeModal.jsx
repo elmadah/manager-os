@@ -137,14 +137,13 @@ export default function AddLeaveRangeModal({ isOpen, onClose, onSaved, plan, tea
           {leaveType === 'loaned' && (
             <div className="space-y-2 p-3 bg-purple-50 border border-purple-200 rounded-lg">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Loaned to team</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Loaned to team (optional)</label>
                 <select
                   value={loanTeamId}
                   onChange={(e) => setLoanTeamId(e.target.value)}
-                  required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 >
-                  <option value="">Select…</option>
+                  <option value="">None</option>
                   {teams.map((t) => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
