@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronDown, CheckCircle2, ArrowRightLeft, Sparkles, BarChart3, Search, Pencil, ClipboardList } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import api from '../lib/api';
@@ -28,6 +29,7 @@ export default function SprintsPage() {
   const [standupHistoryMap, setStandupHistoryMap] = useState({});
   const [historyPopover, setHistoryPopover] = useState(null);
   const [selectedMembers, setSelectedMembers] = useState(new Set());
+  const [capacityPlansByName, setCapacityPlansByName] = useState({});
 
   const fetchStaleData = useCallback(async () => {
     try {
@@ -60,6 +62,13 @@ export default function SprintsPage() {
     api.get('/settings/jira').then(data => {
       if (data.base_url) setJiraBaseUrl(data.base_url.replace(/\/+$/, ''));
     }).catch(() => {});
+    api.get('/capacity-plans').then((data) => {
+      const map = {};
+      for (const p of data) {
+        if (p.jira_sprint_name) map[p.jira_sprint_name] = p;
+      }
+      setCapacityPlansByName(map);
+    }).catch(() => setCapacityPlansByName({}));
   }, []);
 
   useEffect(() => {
@@ -270,6 +279,15 @@ export default function SprintsPage() {
           </select>
           <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
+
+        {selectedSprint && capacityPlansByName[selectedSprint.sprint] && (
+          <Link
+            to={`/capacity/${capacityPlansByName[selectedSprint.sprint].id}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full text-xs font-medium hover:bg-emerald-100"
+          >
+            Planned {capacityPlansByName[selectedSprint.sprint].planned_hours}h · Actual {capacityPlansByName[selectedSprint.sprint].actual_hours}h · {capacityPlansByName[selectedSprint.sprint].total_points}pts
+          </Link>
+        )}
 
         {/* Segmented Control */}
         <div className="flex bg-gray-100 rounded-lg p-0.5">

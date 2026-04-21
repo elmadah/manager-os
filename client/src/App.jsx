@@ -12,6 +12,8 @@ import ImportPage from './pages/ImportPage';
 import NotesPage from './pages/NotesPage';
 import DigestPage from './pages/DigestPage';
 import SettingsPage from './pages/SettingsPage';
+import CapacityListPage from './pages/CapacityListPage';
+import CapacityPlanPage from './pages/CapacityPlanPage';
 
 export default function App() {
   return (
@@ -28,6 +30,8 @@ export default function App() {
           <Route path="/blockers" element={<BlockersPage />} />
           <Route path="/notes" element={<NotesPage />} />
           <Route path="/digest" element={<DigestPage />} />
+          <Route path="/capacity" element={<CapacityListPage />} />
+          <Route path="/capacity/:id" element={<CapacityPlanPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/import-export" element={<ImportPage />} />
         </Route>

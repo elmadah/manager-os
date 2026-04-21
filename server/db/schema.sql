@@ -164,3 +164,45 @@ CREATE TABLE IF NOT EXISTS story_statuses (
   display_order INTEGER DEFAULT 0,
   imported_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS capacity_plans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  jira_sprint_name TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS capacity_plan_members (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id INTEGER NOT NULL REFERENCES capacity_plans(id) ON DELETE CASCADE,
+  member_id INTEGER NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  is_excluded INTEGER DEFAULT 0,
+  UNIQUE(plan_id, member_id)
+);
+
+CREATE TABLE IF NOT EXISTS capacity_leave (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id INTEGER NOT NULL REFERENCES capacity_plans(id) ON DELETE CASCADE,
+  member_id INTEGER NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  leave_date TEXT NOT NULL,
+  leave_type TEXT NOT NULL CHECK(leave_type IN ('vacation','holiday','sick','loaned','other')),
+  is_planned INTEGER DEFAULT 1,
+  loan_team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+  loan_project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  loan_note TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(plan_id, member_id, leave_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_capacity_leave_plan ON capacity_leave(plan_id);
+CREATE INDEX IF NOT EXISTS idx_capacity_plan_members_plan ON capacity_plan_members(plan_id);

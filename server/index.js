@@ -29,6 +29,8 @@ const uploadsRouter = require('./routes/uploads');
 const jiraSettingsRouter = require('./routes/jiraSettings');
 const teamsRouter = require('./routes/teams');
 const standupsRouter = require('./routes/standups');
+const capacityRouter = require('./routes/capacity');
+const appSettingsRouter = require('./routes/appSettings');
 
 app.use('/api/projects', projectsRouter);
 app.use('/api', featuresRouter);
@@ -47,6 +49,8 @@ app.use('/api/uploads', uploadsRouter);
 app.use('/api/settings/jira', jiraSettingsRouter);
 app.use('/api/teams', teamsRouter);
 app.use('/api/standups', standupsRouter);
+app.use('/api/capacity-plans', capacityRouter);
+app.use('/api/settings/app', appSettingsRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
