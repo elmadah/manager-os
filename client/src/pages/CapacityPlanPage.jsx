@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, Plus } from 'lucide-react';
 import api from '../lib/api';
 import { useToast } from '../components/ToastProvider';
 import CapacityGrid from '../components/CapacityGrid';
+import CapacityTotalsPanel from '../components/CapacityTotalsPanel';
+import AddLeaveRangeModal from '../components/AddLeaveRangeModal';
 
 export default function CapacityPlanPage() {
   const { id } = useParams();
@@ -11,6 +13,14 @@ export default function CapacityPlanPage() {
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showRangeModal, setShowRangeModal] = useState(false);
+  const [teams, setTeams] = useState([]);
+  const [projects, setProjects] = useState([]);
+
+  useEffect(() => {
+    api.get('/teams').then(setTeams).catch(() => setTeams([]));
+    api.get('/projects').then(setProjects).catch(() => setProjects([]));
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -27,6 +37,15 @@ export default function CapacityPlanPage() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function reincludeMember(memberId) {
+    const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/capacity-plans/${id}/members/${memberId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_excluded: false }),
+    });
+    if (res.ok) { toast.success('Re-included'); load(); }
+  }
 
   async function saveField(field, value) {
     try {
@@ -125,7 +144,48 @@ export default function CapacityPlanPage() {
         </div>
       )}
 
+      <CapacityTotalsPanel plan={plan} />
+
+      <div className="flex items-center justify-end mb-3">
+        <button
+          onClick={() => setShowRangeModal(true)}
+          className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium text-sm flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" /> Add range
+        </button>
+      </div>
+
       <CapacityGrid plan={plan} onChange={load} />
+
+      {plan.members.some((m) => m.is_excluded) && (
+        <details className="bg-white rounded-xl border border-gray-200 p-4 mt-6">
+          <summary className="cursor-pointer text-sm font-medium text-gray-700">
+            Excluded members ({plan.members.filter((m) => m.is_excluded).length})
+          </summary>
+          <ul className="mt-3 divide-y divide-gray-100">
+            {plan.members.filter((m) => m.is_excluded).map((m) => (
+              <li key={m.member_id} className="flex items-center justify-between py-2">
+                <span className="text-sm text-gray-900">{m.member_name}</span>
+                <button
+                  onClick={() => reincludeMember(m.member_id)}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  Re-include
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      <AddLeaveRangeModal
+        isOpen={showRangeModal}
+        onClose={() => setShowRangeModal(false)}
+        onSaved={load}
+        plan={plan}
+        teams={teams}
+        projects={projects}
+      />
     </div>
   );
 }
