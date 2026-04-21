@@ -113,10 +113,12 @@ export default function TeamPage() {
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 shrink-0">Left</span>
                     )}
                   </div>
-                  {member.role && (
+                  {(member.role || member.level) && (
                     <div className="flex items-center gap-1.5 mt-1">
                       <Briefcase size={12} className="text-gray-400 shrink-0" />
-                      <span className="text-sm text-gray-500 truncate">{member.role}</span>
+                      <span className="text-sm text-gray-500 truncate">
+                        {member.role}{member.role && member.level ? ' · ' : ''}{member.level}
+                      </span>
                     </div>
                   )}
                   {member.email && (
@@ -156,7 +158,7 @@ export default function TeamPage() {
 }
 
 function AddMemberModal({ toast, onClose, onCreated }) {
-  const [form, setForm] = useState({ name: '', role: '', email: '' });
+  const [form, setForm] = useState({ name: '', role: '', level: '', email: '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -213,7 +215,18 @@ function AddMemberModal({ toast, onClose, onCreated }) {
               value={form.role}
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              placeholder="e.g. Senior Developer"
+              placeholder="Role"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+            <input
+              name="level"
+              value={form.level}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              placeholder="Level"
             />
           </div>
 

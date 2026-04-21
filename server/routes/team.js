@@ -316,13 +316,13 @@ function pickNextColor() {
 // POST /api/team
 router.post('/', (req, res) => {
   try {
-    const { name, role, email, color } = req.body;
+    const { name, role, email, color, level } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
     const assignedColor = color || pickNextColor();
     const result = db.prepare(`
-      INSERT INTO team_members (name, role, email, color) VALUES (?, ?, ?, ?)
-    `).run(name, role || '', email || '', assignedColor);
+      INSERT INTO team_members (name, role, email, color, level) VALUES (?, ?, ?, ?, ?)
+    `).run(name, role || '', email || '', assignedColor, level || '');
 
     const member = db.prepare('SELECT * FROM team_members WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(member);
@@ -337,10 +337,10 @@ router.put('/:id', (req, res) => {
     const existing = db.prepare('SELECT * FROM team_members WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Team member not found' });
 
-    const { name, role, email, color, is_active } = req.body;
+    const { name, role, email, color, is_active, level } = req.body;
     db.prepare(`
       UPDATE team_members SET
-        name = ?, role = ?, email = ?, color = ?, is_active = ?
+        name = ?, role = ?, email = ?, color = ?, is_active = ?, level = ?
       WHERE id = ?
     `).run(
       name ?? existing.name,
@@ -348,6 +348,7 @@ router.put('/:id', (req, res) => {
       email ?? existing.email,
       color ?? existing.color,
       is_active !== undefined ? is_active : existing.is_active,
+      level !== undefined ? level : existing.level,
       req.params.id
     );
 

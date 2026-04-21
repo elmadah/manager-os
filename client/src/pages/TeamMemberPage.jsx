@@ -200,7 +200,8 @@ export default function TeamMemberPage() {
             <h1 className="text-3xl font-bold text-gray-900">{member.name}</h1>
             <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
               {member.role && <span>{member.role}</span>}
-              {member.role && member.email && <span className="text-gray-300">|</span>}
+              {member.level && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{member.level}</span>}
+              {(member.role || member.level) && member.email && <span className="text-gray-300">|</span>}
               {member.email && <span>{member.email}</span>}
             </div>
           </div>
@@ -214,15 +215,7 @@ export default function TeamMemberPage() {
             <Pencil size={14} />
             Edit
           </button>
-          {member.is_active ? (
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-orange-600 bg-white border border-orange-200 rounded-lg hover:bg-orange-50"
-            >
-              <UserMinus size={14} />
-              Mark as Left
-            </button>
-          ) : (
+          {!member.is_active && (
             <button
               onClick={handleRestore}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600 bg-white border border-green-200 rounded-lg hover:bg-green-50"
@@ -291,6 +284,7 @@ export default function TeamMemberPage() {
             setShowEdit(false);
             loadData();
           }}
+          onMarkAsLeft={() => setShowDeleteConfirm(true)}
         />
       )}
 
@@ -1336,10 +1330,11 @@ function PerformanceTab({ memberId, memberName }) {
   );
 }
 
-function EditMemberModal({ member, onClose, onSaved }) {
+function EditMemberModal({ member, onClose, onSaved, onMarkAsLeft }) {
   const [form, setForm] = useState({
     name: member.name || '',
     role: member.role || '',
+    level: member.level || '',
     email: member.email || '',
   });
   const [submitting, setSubmitting] = useState(false);
@@ -1396,6 +1391,18 @@ function EditMemberModal({ member, onClose, onSaved }) {
               value={form.role}
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              placeholder="Role"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+            <input
+              name="level"
+              value={form.level}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              placeholder="Level"
             />
           </div>
 
@@ -1411,6 +1418,16 @@ function EditMemberModal({ member, onClose, onSaved }) {
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
+            {member.is_active && onMarkAsLeft && (
+              <button
+                type="button"
+                onClick={() => { onClose(); onMarkAsLeft(); }}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-orange-600 bg-white border border-orange-200 rounded-lg hover:bg-orange-50 mr-auto"
+              >
+                <UserMinus size={14} />
+                Mark as Left
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
