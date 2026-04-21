@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { MoreVertical } from 'lucide-react';
 import api from '../lib/api';
 import CapacityCellPopover from './CapacityCellPopover';
@@ -38,9 +39,24 @@ function formatCol(d) {
 
 export default function CapacityGrid({ plan, onChange }) {
   const [editing, setEditing] = useState(null);
-  const [menuOpen, setMenuOpen] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(null); // { memberId, rect }
   const [teams, setTeams] = useState([]);
   const [projects, setProjects] = useState([]);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDown(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(null);
+    }
+    function onKey(e) { if (e.key === 'Escape') setMenuOpen(null); }
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     api.get('/teams').then(setTeams).catch(() => setTeams([]));
@@ -68,6 +84,15 @@ export default function CapacityGrid({ plan, onChange }) {
     });
     if (res.ok) onChange();
     setMenuOpen(null);
+  }
+
+  function toggleMenu(memberId, e) {
+    if (menuOpen?.memberId === memberId) {
+      setMenuOpen(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuOpen({ memberId, rect });
   }
 
   if (dates.length === 0) return null;
@@ -106,24 +131,12 @@ export default function CapacityGrid({ plan, onChange }) {
                         <p className="font-medium text-gray-900">{m.member_name}</p>
                         {m.role && <p className="text-xs text-gray-500">{m.role}</p>}
                       </div>
-                      <div className="relative">
-                        <button
-                          onClick={() => setMenuOpen(menuOpen === m.member_id ? null : m.member_id)}
-                          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                        {menuOpen === m.member_id && (
-                          <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 w-44">
-                            <button
-                              onClick={() => excludeMember(m.member_id)}
-                              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            >
-                              Exclude from plan
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      <button
+                        onClick={(e) => toggleMenu(m.member_id, e)}
+                        className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
                     </div>
                   </td>
                   {dates.map((d) => {
@@ -156,6 +169,25 @@ export default function CapacityGrid({ plan, onChange }) {
           </tbody>
         </table>
       </div>
+
+      {menuOpen && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-44"
+          style={{
+            top: menuOpen.rect.bottom + 4,
+            left: Math.max(8, menuOpen.rect.right - 176),
+          }}
+        >
+          <button
+            onClick={() => excludeMember(menuOpen.memberId)}
+            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Exclude from plan
+          </button>
+        </div>,
+        document.body
+      )}
 
       {editing && (
         <CapacityCellPopover
