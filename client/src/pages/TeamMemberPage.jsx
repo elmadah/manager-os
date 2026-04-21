@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Pencil, Trash2, X, Zap, CheckCircle, Clock, AlertTriangle, TrendingUp, Plus, ChevronRight, MessageSquare, Calendar, Copy, Save, FileText, Shield } from 'lucide-react';
+import { ArrowLeft, Pencil, Trash2, X, Zap, CheckCircle, Clock, AlertTriangle, TrendingUp, Plus, ChevronRight, MessageSquare, Calendar, Copy, Save, FileText, Shield, UserMinus, UserPlus } from 'lucide-react';
 import { ComposedChart, LineChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import api from '../lib/api';
@@ -91,13 +91,23 @@ export default function TeamMemberPage() {
     api.get('/team').then(setAllMembers).catch(() => {});
   }, [id]);
 
-  async function handleDelete() {
+  async function handleMarkAsLeft() {
     try {
-      await api.del(`/team/${id}`);
-      toast.success('Team member deleted');
-      navigate('/team');
+      await api.put(`/team/${id}`, { is_active: 0 });
+      toast.success('Team member marked as left');
+      loadData();
     } catch {
-      toast.error('Failed to delete team member');
+      toast.error('Failed to update team member');
+    }
+  }
+
+  async function handleRestore() {
+    try {
+      await api.put(`/team/${id}`, { is_active: 1 });
+      toast.success('Team member restored');
+      loadData();
+    } catch {
+      toast.error('Failed to restore team member');
     }
   }
 
@@ -204,15 +214,36 @@ export default function TeamMemberPage() {
             <Pencil size={14} />
             Edit
           </button>
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50"
-          >
-            <Trash2 size={14} />
-            Delete
-          </button>
+          {member.is_active ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-orange-600 bg-white border border-orange-200 rounded-lg hover:bg-orange-50"
+            >
+              <UserMinus size={14} />
+              Mark as Left
+            </button>
+          ) : (
+            <button
+              onClick={handleRestore}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600 bg-white border border-green-200 rounded-lg hover:bg-green-50"
+            >
+              <UserPlus size={14} />
+              Restore
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Inactive Banner */}
+      {!member.is_active && (
+        <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-xl flex items-center gap-3">
+          <UserMinus size={20} className="text-gray-400 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-gray-700">This team member has left the team</p>
+            <p className="text-xs text-gray-500">Their historical data is preserved. Click "Restore" to make them active again.</p>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6">
@@ -263,13 +294,13 @@ export default function TeamMemberPage() {
         />
       )}
 
-      {/* Delete Confirmation */}
+      {/* Mark as Left Confirmation */}
       {showDeleteConfirm && (
         <ConfirmDialog
-          title="Delete Team Member"
-          message={`Are you sure you want to delete "${member.name}"? This action cannot be undone.`}
-          confirmLabel="Delete Member"
-          onConfirm={handleDelete}
+          title="Mark as Left"
+          message={`Mark "${member.name}" as having left the team? Their data will be preserved. You can restore them later.`}
+          confirmLabel="Mark as Left"
+          onConfirm={() => { handleMarkAsLeft(); setShowDeleteConfirm(false); }}
           onCancel={() => setShowDeleteConfirm(false)}
         />
       )}

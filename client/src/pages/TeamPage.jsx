@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Users, X, Mail, Briefcase } from 'lucide-react';
+import { Plus, Users, X, Mail, Briefcase, UserX } from 'lucide-react';
 import api from '../lib/api';
 import { useToast } from '../components/ToastProvider';
 
@@ -10,10 +10,12 @@ export default function TeamPage() {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
 
   async function loadMembers() {
     try {
-      const data = await api.get('/team');
+      const url = showInactive ? '/team?include_inactive=true' : '/team';
+      const data = await api.get(url);
       setMembers(data);
     } catch (err) {
       console.error('Failed to load team:', err);
@@ -24,7 +26,7 @@ export default function TeamPage() {
 
   useEffect(() => {
     loadMembers();
-  }, []);
+  }, [showInactive]);
 
   function getInitials(name) {
     return name
@@ -48,13 +50,26 @@ export default function TeamPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Team</h1>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={16} />
-          Add Team Member
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowInactive(!showInactive)}
+            className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+              showInactive
+                ? 'bg-gray-100 border-gray-300 text-gray-700'
+                : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            <UserX size={16} />
+            {showInactive ? 'Hide' : 'Show'} former members
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={16} />
+            Add Team Member
+          </button>
+        </div>
       </div>
 
       {/* Grid */}
@@ -77,18 +92,27 @@ export default function TeamPage() {
             <div
               key={member.id}
               onClick={() => navigate(`/team/${member.id}`)}
-              className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all cursor-pointer"
+              className={`bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all cursor-pointer ${
+                !member.is_active ? 'opacity-60' : ''
+              }`}
             >
               <div className="flex items-start gap-4">
                 {/* Avatar */}
                 <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold shrink-0 text-white"
+                  className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold shrink-0 text-white ${
+                    !member.is_active ? 'grayscale' : ''
+                  }`}
                   style={{ backgroundColor: member.color || '#9ca3af' }}
                 >
                   {getInitials(member.name)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-lg font-bold text-gray-900 leading-tight truncate">{member.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-gray-900 leading-tight truncate">{member.name}</h3>
+                    {!member.is_active && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 shrink-0">Left</span>
+                    )}
+                  </div>
                   {member.role && (
                     <div className="flex items-center gap-1.5 mt-1">
                       <Briefcase size={12} className="text-gray-400 shrink-0" />
