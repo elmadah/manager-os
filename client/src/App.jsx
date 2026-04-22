@@ -12,6 +12,7 @@ import ImportPage from './pages/ImportPage';
 import NotesPage from './pages/NotesPage';
 import DigestPage from './pages/DigestPage';
 import SettingsPage from './pages/SettingsPage';
+import AboutPage from './pages/AboutPage';
 import CapacityListPage from './pages/CapacityListPage';
 import CapacityPlanPage from './pages/CapacityPlanPage';
 
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/capacity/:id" element={<CapacityPlanPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/import-export" element={<ImportPage />} />
+          <Route path="/settings/about" element={<AboutPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

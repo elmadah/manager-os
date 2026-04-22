@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   Settings,
   Loader2,
@@ -16,11 +15,7 @@ import api from '../lib/api';
 import { useToast } from '../components/ToastProvider';
 import { fetchStatuses } from '../lib/statuses';
 import SyncModal from '../components/SyncModal';
-
-const SETTINGS_TABS = [
-  { to: '/settings', label: 'General', end: true },
-  { to: '/settings/import-export', label: 'Import & Export' },
-];
+import SettingsTabs from '../components/SettingsTabs';
 
 export default function SettingsPage() {
   const toast = useToast();
@@ -335,24 +330,7 @@ export default function SettingsPage() {
     <div className="max-w-3xl">
       <h1 className="text-3xl font-bold text-gray-900 mb-6">Settings</h1>
 
-      {/* Sub-navigation tabs */}
-      <div className="flex gap-1 mb-6 border-b border-gray-200">
-        {SETTINGS_TABS.map((tab) => (
-          <NavLink
-            key={tab.to}
-            to={tab.to}
-            end={tab.end}
-            className={({ isActive }) =>
-              `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                isActive
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`
-            }
-          >
-            {tab.label}
-          </NavLink>
-        ))}</div>
+      <SettingsTabs />
 
       {/* Jira Connection */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">

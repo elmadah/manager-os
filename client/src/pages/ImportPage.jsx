@@ -1,13 +1,9 @@
 import { useState, useRef, useCallback } from 'react';
-import { useNavigate, NavLink } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Upload, FileText, X, AlertTriangle, Check, Loader2, Filter, DatabaseBackup, ChevronDown, ChevronRight, Info, Download } from 'lucide-react';
 import api from '../lib/api';
 import { useToast } from '../components/ToastProvider';
-
-const SETTINGS_TABS = [
-  { to: '/settings', label: 'General', end: true },
-  { to: '/settings/import-export', label: 'Import & Export' },
-];
+import SettingsTabs from '../components/SettingsTabs';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -337,24 +333,7 @@ export default function ImportPage() {
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-6">Settings</h1>
 
-      {/* Sub-navigation tabs */}
-      <div className="flex gap-1 mb-6 border-b border-gray-200">
-        {SETTINGS_TABS.map((tab) => (
-          <NavLink
-            key={tab.to}
-            to={tab.to}
-            end={tab.end}
-            className={({ isActive }) =>
-              `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                isActive
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`
-            }
-          >
-            {tab.label}
-          </NavLink>
-        ))}</div>
+      <SettingsTabs />
 
       {/* Export Data */}
       <div className="mb-6 bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-between">
