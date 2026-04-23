@@ -28,6 +28,42 @@ router.get('/', (req, res) => {
     `).all();
 
     const featureStmt = db.prepare('SELECT id, name FROM features WHERE project_id = ? ORDER BY name');
+    const statusRows = db.prepare(`
+      SELECT f.project_id, st.status, COUNT(st.id) AS count
+      FROM features f
+      JOIN stories st ON st.feature_id = f.id
+      GROUP BY f.project_id, st.status
+      ORDER BY count DESC, st.status
+    `).all();
+    const memberRows = db.prepare(`
+      SELECT f.project_id, tm.id, tm.name, tm.color, COUNT(st.id) AS story_count
+      FROM features f
+      JOIN stories st ON st.feature_id = f.id
+      JOIN team_members tm ON tm.id = st.assignee_id
+      GROUP BY f.project_id, tm.id, tm.name, tm.color
+      ORDER BY story_count DESC, tm.name
+    `).all();
+
+    const statusesByProject = {};
+    for (const row of statusRows) {
+      if (!statusesByProject[row.project_id]) statusesByProject[row.project_id] = [];
+      statusesByProject[row.project_id].push({
+        status: row.status || 'Unspecified',
+        count: row.count,
+      });
+    }
+
+    const membersByProject = {};
+    for (const row of memberRows) {
+      if (!membersByProject[row.project_id]) membersByProject[row.project_id] = [];
+      membersByProject[row.project_id].push({
+        id: row.id,
+        name: row.name,
+        color: row.color,
+        story_count: row.story_count,
+      });
+    }
+
     const result = projects.map(p => ({
       id: p.id,
       name: p.name,
@@ -41,6 +77,8 @@ router.get('/', (req, res) => {
       updated_at: p.updated_at,
       feature_count: p.feature_count,
       features: featureStmt.all(p.id),
+      team_members: membersByProject[p.id] || [],
+      story_status_counts: statusesByProject[p.id] || [],
       story_stats: {
         total_stories: p.total_stories,
         completed_stories: p.completed_stories,
@@ -65,6 +103,8 @@ router.get('/:id', (req, res) => {
       SELECT f.*,
         COALESCE(s.total, 0) AS total_stories,
         COALESCE(s.completed, 0) AS completed_stories,
+        COALESCE(s.total_defects, 0) AS total_defects,
+        COALESCE(s.completed_defects, 0) AS completed_defects,
         COALESCE(s.total_points, 0) AS total_points,
         COALESCE(s.completed_points, 0) AS completed_points
       FROM features f
@@ -72,6 +112,8 @@ router.get('/:id', (req, res) => {
         SELECT feature_id,
           COUNT(*) AS total,
           SUM(CASE WHEN ${doneCondition('status')} THEN 1 ELSE 0 END) AS completed,
+          SUM(CASE WHEN LOWER(COALESCE(issue_type, '')) IN ('bug', 'defect') THEN 1 ELSE 0 END) AS total_defects,
+          SUM(CASE WHEN LOWER(COALESCE(issue_type, '')) IN ('bug', 'defect') AND ${doneCondition('status')} THEN 1 ELSE 0 END) AS completed_defects,
           SUM(story_points) AS total_points,
           SUM(CASE WHEN ${doneCondition('status')} THEN story_points ELSE 0 END) AS completed_points
         FROM stories
@@ -85,10 +127,12 @@ router.get('/:id', (req, res) => {
       (acc, f) => ({
         total_stories: acc.total_stories + f.total_stories,
         completed_stories: acc.completed_stories + f.completed_stories,
+        total_defects: acc.total_defects + f.total_defects,
+        completed_defects: acc.completed_defects + f.completed_defects,
         total_points: acc.total_points + f.total_points,
         completed_points: acc.completed_points + f.completed_points,
       }),
-      { total_stories: 0, completed_stories: 0, total_points: 0, completed_points: 0 }
+      { total_stories: 0, completed_stories: 0, total_defects: 0, completed_defects: 0, total_points: 0, completed_points: 0 }
     );
 
     res.json({ ...project, features, story_stats: storyStats });

@@ -4,6 +4,7 @@ import {
   ArrowLeft, Plus, ChevronDown, ChevronRight, Pencil, Trash2,
   X, BarChart3, Layers, BookOpen, Target, RefreshCw, TrendingUp,
   CheckSquare, Square, Calendar, AlertCircle, ListTodo, GripVertical,
+  Activity, ShieldCheck,
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import api from '../lib/api';
@@ -61,6 +62,90 @@ const PRIORITY_STYLES = {
   low: 'bg-gray-100 text-gray-600',
 };
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function parseDate(dateStr) {
+  if (!dateStr) return null;
+  return new Date(`${dateStr}T00:00:00`);
+}
+
+function toDateString(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function startOfWeek(date) {
+  const next = new Date(date);
+  const day = next.getDay();
+  next.setDate(next.getDate() - day);
+  return next;
+}
+
+function endOfWeek(date) {
+  return addDays(startOfWeek(date), 6);
+}
+
+function daysBetween(start, end) {
+  return Math.round((parseDate(end) - parseDate(start)) / MS_PER_DAY);
+}
+
+function weeksBetween(start, end) {
+  return Math.round((startOfWeek(parseDate(end)) - startOfWeek(parseDate(start))) / (MS_PER_DAY * 7));
+}
+
+function formatShortDate(dateStr) {
+  const date = parseDate(dateStr);
+  if (!date) return '';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function formatMonthYear(dateStr) {
+  const date = parseDate(dateStr);
+  if (!date) return '';
+  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+function buildFeatureCalendarTimeline(project, features) {
+  const datedFeatures = features.filter((feature) => feature.start_date || feature.target_date);
+  const starts = datedFeatures.map((feature) => parseDate(feature.start_date || feature.target_date));
+  const ends = datedFeatures.map((feature) => parseDate(feature.target_date || feature.start_date));
+
+  let start = starts.length ? new Date(Math.min(...starts)) : parseDate(project.start_date);
+  let end = ends.length ? new Date(Math.max(...ends)) : parseDate(project.target_date);
+  if (!start) start = new Date();
+  if (!end || end < start) end = addDays(start, 90);
+
+  start = startOfWeek(start);
+  end = endOfWeek(end);
+
+  const weekCount = Math.max(weeksBetween(toDateString(start), toDateString(end)) + 1, 4);
+  const weeks = Array.from({ length: weekCount }, (_, index) => toDateString(addDays(start, index * 7)));
+  const months = [];
+
+  for (const week of weeks) {
+    const label = formatMonthYear(week);
+    const current = months[months.length - 1];
+    if (current?.label === label) {
+      current.span += 1;
+    } else {
+      months.push({ label, span: 1 });
+    }
+  }
+
+  return { weeks, months };
+}
+
+function getFeatureDateRange(feature) {
+  const start = feature.start_date || feature.target_date;
+  const end = feature.target_date || feature.start_date;
+  if (!start || !end) return null;
+  return parseDate(end) < parseDate(start) ? { start: end, end: start } : { start, end };
+}
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
@@ -100,7 +185,9 @@ export default function ProjectDetailPage() {
       }
       data.features = data.features.map(f => ({
         ...f,
-        completed_points: featureMap[f.id]?.story_stats?.points || f.completed_points || 0,
+        total_defects: featureMap[f.id]?.story_stats?.defects || f.total_defects || 0,
+        completed_defects: featureMap[f.id]?.story_stats?.completed_defects || f.completed_defects || 0,
+        completed_points: featureMap[f.id]?.story_stats?.completed_points || f.completed_points || 0,
         carry_overs: featureMap[f.id]?.story_stats?.carry_overs || 0,
       }));
       setProject(data);
@@ -200,6 +287,36 @@ export default function ProjectDetailPage() {
     }
   }
 
+  async function handleFeatureDateDrop(featureId, nextStartDate) {
+    const feature = project.features.find((item) => item.id === Number(featureId));
+    if (!feature) return;
+
+    const range = getFeatureDateRange(feature);
+    const duration = range ? Math.max(daysBetween(range.start, range.end), 0) : 0;
+    const nextTargetDate = toDateString(addDays(parseDate(nextStartDate), duration));
+    const previousFeatures = project.features;
+
+    setProject(prev => ({
+      ...prev,
+      features: prev.features.map((item) =>
+        item.id === feature.id
+          ? { ...item, start_date: nextStartDate, target_date: nextTargetDate }
+          : item
+      ),
+    }));
+
+    try {
+      await api.put(`/features/${feature.id}`, {
+        start_date: nextStartDate,
+        target_date: nextTargetDate,
+      });
+      toast.success('Feature dates updated');
+    } catch {
+      setProject(prev => ({ ...prev, features: previousFeatures }));
+      toast.error('Failed to update feature dates');
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -222,6 +339,10 @@ export default function ProjectDetailPage() {
   const { story_stats: ss, features } = project;
   const totalCarryOvers = features.reduce((sum, f) => sum + (f.carry_overs || 0), 0);
   const progress = ss.total_stories > 0 ? Math.round((ss.completed_stories / ss.total_stories) * 100) : 0;
+  const defectStats = {
+    total: ss.total_defects || features.reduce((sum, f) => sum + (f.total_defects || 0), 0),
+    completed: ss.completed_defects || features.reduce((sum, f) => sum + (f.completed_defects || 0), 0),
+  };
 
   return (
     <div>
@@ -346,15 +467,15 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-        <StatCard icon={<Layers size={18} />} label="Features" value={features.length} color="blue" />
-        <StatCard icon={<BookOpen size={18} />} label="Stories" value={`${ss.completed_stories} / ${ss.total_stories}`} color="green" />
-        <StatCard icon={<Target size={18} />} label="Points" value={`${ss.completed_points} / ${ss.total_points}`} color="purple" />
-        <StatCard icon={<RefreshCw size={18} />} label="Carry-overs" value={totalCarryOvers} color="orange" />
-        <StatCard icon={<TrendingUp size={18} />} label="Progress" value={`${progress}%`} color="teal" />
-        <StatCard icon={<BarChart3 size={18} />} label="Health" value={HEALTH_LABELS[project.health]} color={project.health === 'green' ? 'green' : project.health === 'yellow' ? 'orange' : 'red'} />
-      </div>
+      <ProjectOverviewDashboard
+        project={project}
+        features={features}
+        storyStats={ss}
+        defectStats={defectStats}
+        totalCarryOvers={totalCarryOvers}
+        progress={progress}
+        onFeatureDateDrop={handleFeatureDateDrop}
+      />
 
       {/* Project Description */}
       <div className="flex items-center justify-between mb-4">
@@ -560,7 +681,94 @@ export default function ProjectDetailPage() {
   );
 }
 
-function StatCard({ icon, label, value, color }) {
+function ProjectOverviewDashboard({ project, features, storyStats, defectStats, totalCarryOvers, progress, onFeatureDateDrop }) {
+  const openStories = Math.max((storyStats.total_stories || 0) - (storyStats.completed_stories || 0), 0);
+  const openDefects = Math.max((defectStats.total || 0) - (defectStats.completed || 0), 0);
+
+  return (
+    <section className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-4 mb-8">
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex items-start justify-between mb-5">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Project stories/defects Overview</h2>
+            <p className="text-xs text-gray-500 mt-1">Status based on current project issues</p>
+          </div>
+          <Activity size={18} className="text-gray-400" />
+        </div>
+
+        <OverviewProgress
+          completed={storyStats.completed_stories || 0}
+          total={storyStats.total_stories || 0}
+          defects={defectStats.total || 0}
+        />
+
+        <div className="grid grid-cols-2 gap-3 mt-6">
+          <OverviewBreakdown label="Stories done" value={storyStats.completed_stories || 0} accent="bg-green-500" />
+          <OverviewBreakdown label="Open stories" value={openStories} accent="bg-blue-500" />
+          <OverviewBreakdown label="Defects resolved" value={defectStats.completed || 0} accent="bg-red-500" />
+          <OverviewBreakdown label="Open defects" value={openDefects} accent="bg-orange-500" />
+        </div>
+      </div>
+
+      <div className="space-y-4 min-w-0">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <DashboardMetric icon={<Layers size={18} />} label="Features" value={features.length} color="blue" />
+          <DashboardMetric icon={<BookOpen size={18} />} label="Stories" value={`${storyStats.completed_stories} / ${storyStats.total_stories}`} color="green" />
+          <DashboardMetric icon={<Target size={18} />} label="Points" value={`${storyStats.completed_points} / ${storyStats.total_points}`} color="purple" />
+          <DashboardMetric icon={<RefreshCw size={18} />} label="Carry-overs" value={totalCarryOvers} color="orange" />
+          <DashboardMetric icon={<TrendingUp size={18} />} label="Progress" value={`${progress}%`} color="teal" />
+          <DashboardMetric icon={<ShieldCheck size={18} />} label="Health" value={HEALTH_LABELS[project.health]} color={project.health === 'green' ? 'green' : project.health === 'yellow' ? 'orange' : 'red'} />
+        </div>
+
+        <FeatureCalendar
+          project={project}
+          features={features}
+          onFeatureDateDrop={onFeatureDateDrop}
+        />
+      </div>
+    </section>
+  );
+}
+
+function OverviewProgress({ completed, total, defects }) {
+  const completedPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const defectPct = total > 0 ? Math.round((defects / total) * 100) : 0;
+  const openDefectPct = Math.min(defectPct, Math.max(100 - completedPct, 0));
+  const openPct = Math.max(100 - completedPct - openDefectPct, 0);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-gray-700">Issue mix</span>
+        <span className="text-sm font-semibold text-gray-900">{completedPct}% complete</span>
+      </div>
+      <div className="h-3 w-full rounded-full overflow-hidden bg-gray-100 flex">
+        <div className="bg-green-500" style={{ width: `${completedPct}%` }} />
+        <div className="bg-red-500" style={{ width: `${openDefectPct}%` }} />
+        <div className="bg-blue-400" style={{ width: `${openPct}%` }} />
+      </div>
+      <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+        <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500" /> Done</span>
+        <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400" /> Open</span>
+        <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500" /> Defects</span>
+      </div>
+    </div>
+  );
+}
+
+function OverviewBreakdown({ label, value, accent }) {
+  return (
+    <div className="border border-gray-200 rounded-lg p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <span className={`w-2 h-2 rounded-full ${accent}`} />
+        <span className="text-xs font-medium text-gray-600">{label}</span>
+      </div>
+      <p className="text-2xl font-bold text-gray-900">{value}</p>
+    </div>
+  );
+}
+
+function DashboardMetric({ icon, label, value, color }) {
   const colorMap = {
     blue: 'bg-blue-50 text-blue-600',
     green: 'bg-green-50 text-green-600',
@@ -571,10 +779,136 @@ function StatCard({ icon, label, value, color }) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className={`inline-flex p-2 rounded-lg mb-2 ${colorMap[color]}`}>{icon}</div>
-      <p className="text-xl font-bold text-gray-900">{value}</p>
+    <div className="bg-white rounded-xl border border-gray-200 p-4 min-w-0">
+      <div className={`inline-flex p-2 rounded-lg mb-3 ${colorMap[color]}`}>{icon}</div>
+      <p className="text-xl font-bold text-gray-900 truncate">{value}</p>
       <p className="text-xs text-gray-500">{label}</p>
+    </div>
+  );
+}
+
+function FeatureCalendar({ project, features, onFeatureDateDrop }) {
+  const { weeks, months } = buildFeatureCalendarTimeline(project, features);
+  const datedFeatures = features
+    .map((feature) => ({ ...feature, range: getFeatureDateRange(feature) }))
+    .filter((feature) => feature.range);
+  const undatedFeatures = features.filter((feature) => !getFeatureDateRange(feature));
+  const rowCount = Math.max(datedFeatures.length, 1);
+
+  function getGridColumn(feature) {
+    const firstWeek = weeks[0];
+    const lastWeek = weeks[weeks.length - 1];
+    const startIndex = Math.max(weeksBetween(firstWeek, feature.range.start), 0);
+    const endIndex = Math.min(weeksBetween(firstWeek, feature.range.end), weeks.length - 1);
+    return `${startIndex + 1} / ${endIndex + 2}`;
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Features Calendar</h2>
+          <p className="text-xs text-gray-500 mt-1">Multi-month view by week. Drag a feature to a new start week.</p>
+        </div>
+        <Calendar size={18} className="text-gray-400" />
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[920px]">
+          <div
+            className="grid border-b border-gray-100 bg-gray-50"
+            style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(74px, 1fr))` }}
+          >
+            {months.map((month, index) => (
+              <div
+                key={`${month.label}-${index}`}
+                className="px-3 py-2 text-xs font-bold text-gray-700 border-r border-gray-200 last:border-r-0"
+                style={{ gridColumn: `span ${month.span}` }}
+              >
+                {month.label}
+              </div>
+            ))}
+          </div>
+          <div
+            className="grid border-b border-gray-100 bg-gray-50"
+            style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(74px, 1fr))` }}
+          >
+            {weeks.map((week) => (
+              <div key={week} className="px-3 py-2 text-xs font-semibold text-gray-500 border-r border-gray-100 last:border-r-0">
+                {formatShortDate(week)}
+              </div>
+            ))}
+          </div>
+
+          <div
+            className="relative grid bg-gray-50"
+            style={{
+              gridTemplateColumns: `repeat(${weeks.length}, minmax(74px, 1fr))`,
+              gridTemplateRows: `repeat(${rowCount}, 54px)`,
+            }}
+          >
+            {weeks.map((week, index) => (
+              <div
+                key={week}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const featureId = event.dataTransfer.getData('text/feature-id');
+                  if (featureId) onFeatureDateDrop(featureId, week);
+                }}
+                className="border-r border-gray-100 last:border-r-0"
+                style={{ gridColumn: `${index + 1} / ${index + 2}`, gridRow: `1 / ${rowCount + 1}` }}
+              />
+            ))}
+
+            {datedFeatures.length === 0 ? (
+              <div className="flex items-center justify-center text-sm text-gray-400" style={{ gridColumn: `1 / ${weeks.length + 1}`, gridRow: '1 / 2' }}>
+                Add feature dates to use the calendar.
+              </div>
+            ) : (
+              datedFeatures.map((feature, index) => (
+                <div
+                  key={feature.id}
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData('text/feature-id', String(feature.id));
+                    event.dataTransfer.effectAllowed = 'move';
+                  }}
+                  className="self-center mx-2 px-3 py-2 rounded-lg bg-white text-gray-900 border border-gray-200 shadow-sm cursor-grab active:cursor-grabbing overflow-hidden"
+                  style={{ gridColumn: getGridColumn(feature), gridRow: `${index + 1} / ${index + 2}` }}
+                  title={`${feature.name}: ${formatShortDate(feature.range.start)} - ${formatShortDate(feature.range.end)}`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-100 px-2 py-0.5 rounded">{formatShortDate(feature.range.start)}</span>
+                    <span className="text-sm font-medium truncate">{feature.name}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {undatedFeatures.length > 0 && (
+            <div className="px-4 py-3 border-t border-gray-100 bg-gray-50">
+              <div className="text-xs font-semibold text-gray-500 mb-2">No dates</div>
+              <div className="flex flex-wrap gap-2">
+                {undatedFeatures.map((feature) => (
+                  <span
+                    key={feature.id}
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData('text/feature-id', String(feature.id));
+                      event.dataTransfer.effectAllowed = 'move';
+                    }}
+                    className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-lg cursor-grab active:cursor-grabbing"
+                  >
+                    {feature.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

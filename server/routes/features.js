@@ -13,6 +13,8 @@ router.get('/projects/:projectId/features', (req, res) => {
       SELECT f.*,
         COALESCE(s.total, 0) AS total_stories,
         COALESCE(s.completed, 0) AS completed_stories,
+        COALESCE(s.total_defects, 0) AS total_defects,
+        COALESCE(s.completed_defects, 0) AS completed_defects,
         COALESCE(s.carry_overs, 0) AS carry_overs,
         COALESCE(s.total_points, 0) AS total_points,
         COALESCE(s.completed_points, 0) AS completed_points
@@ -21,6 +23,8 @@ router.get('/projects/:projectId/features', (req, res) => {
         SELECT feature_id,
           COUNT(*) AS total,
           SUM(CASE WHEN ${doneCondition('status')} THEN 1 ELSE 0 END) AS completed,
+          SUM(CASE WHEN LOWER(COALESCE(issue_type, '')) IN ('bug', 'defect') THEN 1 ELSE 0 END) AS total_defects,
+          SUM(CASE WHEN LOWER(COALESCE(issue_type, '')) IN ('bug', 'defect') AND ${doneCondition('status')} THEN 1 ELSE 0 END) AS completed_defects,
           SUM(CASE WHEN carry_over_count > 0 THEN 1 ELSE 0 END) AS carry_overs,
           SUM(story_points) AS total_points,
           SUM(CASE WHEN ${doneCondition('status')} THEN story_points ELSE 0 END) AS completed_points
@@ -45,6 +49,8 @@ router.get('/projects/:projectId/features', (req, res) => {
       story_stats: {
         total: f.total_stories,
         completed: f.completed_stories,
+        defects: f.total_defects,
+        completed_defects: f.completed_defects,
         carry_overs: f.carry_overs,
         points: f.total_points,
         completed_points: f.completed_points,
