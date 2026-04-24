@@ -156,6 +156,7 @@ router.get('/:sprintName/stories', (req, res) => {
         story_points: story.story_points,
         assignee_id: story.assignee_id,
         assignee: story.assignee,
+        feature_id: story.feature_id,
         feature_name: story.feature_name,
         project_name: story.project_name,
         project_color: story.project_color,
