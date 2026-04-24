@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import api from '../lib/api';
+import { fetchStatuses, getStatusList } from '../lib/statuses';
 
 export default function StoryEditModal({ story, teamMembers, onClose, onSave }) {
   const [form, setForm] = useState({
@@ -15,6 +16,15 @@ export default function StoryEditModal({ story, teamMembers, onClose, onSave }) 
   const [submitting, setSubmitting] = useState(false);
   const [projects, setProjects] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [statuses, setStatuses] = useState(() => getStatusList());
+
+  useEffect(() => {
+    let mounted = true;
+    fetchStatuses().then(() => {
+      if (mounted) setStatuses(getStatusList());
+    });
+    return () => { mounted = false; };
+  }, []);
 
   // Load projects with their features on mount
   useEffect(() => {
@@ -137,10 +147,9 @@ export default function StoryEditModal({ story, teamMembers, onClose, onSave }) 
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               >
                 <option value="">—</option>
-                <option value="To Do">To Do</option>
-                <option value="In Progress">In Progress</option>
-                <option value="In Review">In Review</option>
-                <option value="Done">Done</option>
+                {statuses.map(s => (
+                  <option key={s.name} value={s.name}>{s.name}</option>
+                ))}
               </select>
             </div>
             <div>
