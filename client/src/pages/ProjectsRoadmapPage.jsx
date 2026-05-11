@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useOutletContext } from 'react-router-dom';
 import api from '../lib/api';
 import { defaultRange, healthOfFeature } from '../lib/roadmap';
 import RoadmapToolbar from '../components/RoadmapToolbar';
@@ -12,11 +12,18 @@ function parseList(v) {
 }
 
 function deriveProjectHealthBucket(p) {
-  return p.health || 'green';
+  if (!p.features || p.features.length === 0) {
+    return p.health || 'green';
+  }
+  const featureHealths = new Set(p.features.map(f => healthOfFeature(f)));
+  if (featureHealths.has('red')) return 'red';
+  if (featureHealths.has('yellow')) return 'yellow';
+  return 'green';
 }
 
 export default function ProjectsRoadmapPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { refreshKey } = useOutletContext() ?? {};
 
   const params = useMemo(() => {
     const fallback = defaultRange(new Date());
@@ -52,7 +59,7 @@ export default function ProjectsRoadmapPage() {
       .catch(err => { if (!cancelled) setError(err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [params.start, params.end]);
+  }, [params.start, params.end, refreshKey]);
 
   const filteredProjects = useMemo(() => {
     if (!data) return [];
