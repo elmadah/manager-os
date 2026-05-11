@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { Plus, Calendar } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import api from '../lib/api';
-import CreateProjectModal from '../components/CreateProjectModal';
 
 const COLUMNS = [
   { status: 'upcoming', label: 'Upcoming', headerBg: 'bg-gray-500', columnBg: 'bg-gray-50', borderColor: 'border-gray-300' },
@@ -25,11 +24,11 @@ const HEALTH_DOT_COLORS = {
   red: 'bg-red-500',
 };
 
-export default function ProjectsPage() {
+export default function ProjectsBoardPage() {
   const navigate = useNavigate();
+  const { refreshKey } = useOutletContext() ?? {};
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const loadProjects = useCallback(async () => {
     try {
@@ -44,7 +43,7 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     loadProjects();
-  }, [loadProjects]);
+  }, [loadProjects, refreshKey]);
 
   function getColumnProjects(status) {
     return projects.filter((p) => p.status === status);
@@ -82,22 +81,8 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Projects</h1>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={16} />
-          Add Project
-        </button>
-      </div>
-
-      {/* Kanban Board */}
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4 flex-1 min-h-0">
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <div className="flex gap-4 overflow-x-auto pb-4 h-full min-h-0">
           {COLUMNS.map((col) => {
             const colProjects = getColumnProjects(col.status);
             return (
@@ -179,14 +164,7 @@ export default function ProjectsPage() {
               </div>
             );
           })}
-        </div>
-      </DragDropContext>
-
-      <CreateProjectModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onCreated={loadProjects}
-      />
-    </div>
+      </div>
+    </DragDropContext>
   );
 }
