@@ -93,6 +93,135 @@ router.get('/', (req, res) => {
   }
 });
 
+// GET /api/projects/roadmap?start=YYYY-MM-DD&end=YYYY-MM-DD
+// Returns projects overlapping the window (or unscheduled) with nested features and per-feature story stats.
+router.get('/roadmap', (req, res) => {
+  try {
+    const { start, end } = req.query;
+    if (!start || !end) {
+      return res.status(400).json({ error: 'start and end query params are required (YYYY-MM-DD)' });
+    }
+
+    // Projects in window OR unscheduled (missing either date)
+    const projectRows = db.prepare(`
+      SELECT p.*,
+        COALESCE(s.total_stories, 0) AS total_stories,
+        COALESCE(s.completed_stories, 0) AS completed_stories,
+        COALESCE(s.total_points, 0) AS total_points,
+        COALESCE(s.completed_points, 0) AS completed_points
+      FROM projects p
+      LEFT JOIN (
+        SELECT f.project_id,
+          COUNT(st.id) AS total_stories,
+          SUM(CASE WHEN ${doneCondition('st.status')} THEN 1 ELSE 0 END) AS completed_stories,
+          SUM(st.story_points) AS total_points,
+          SUM(CASE WHEN ${doneCondition('st.status')} THEN st.story_points ELSE 0 END) AS completed_points
+        FROM features f
+        JOIN stories st ON st.feature_id = f.id
+        GROUP BY f.project_id
+      ) s ON s.project_id = p.id
+      WHERE p.start_date IS NULL
+         OR p.target_date IS NULL
+         OR (p.target_date >= ? AND p.start_date <= ?)
+      ORDER BY COALESCE(p.start_date, '9999-12-31'), p.name
+    `).all(start, end);
+
+    const projectIds = projectRows.map(p => p.id);
+
+    // Features for those projects with per-feature story aggregate
+    let featureRows = [];
+    if (projectIds.length > 0) {
+      const placeholders = projectIds.map(() => '?').join(',');
+      featureRows = db.prepare(`
+        SELECT f.*,
+          COALESCE(s.total, 0) AS total_stories,
+          COALESCE(s.completed, 0) AS completed_stories,
+          COALESCE(s.total_points, 0) AS total_points,
+          COALESCE(s.completed_points, 0) AS completed_points
+        FROM features f
+        LEFT JOIN (
+          SELECT feature_id,
+            COUNT(*) AS total,
+            SUM(CASE WHEN ${doneCondition('status')} THEN 1 ELSE 0 END) AS completed,
+            SUM(story_points) AS total_points,
+            SUM(CASE WHEN ${doneCondition('status')} THEN story_points ELSE 0 END) AS completed_points
+          FROM stories
+          GROUP BY feature_id
+        ) s ON s.feature_id = f.id
+        WHERE f.project_id IN (${placeholders})
+        ORDER BY COALESCE(f.start_date, '9999-12-31'), f.name
+      `).all(...projectIds);
+    }
+
+    // Partition features into scheduled (in window) vs unscheduled
+    const inWindow = (d1, d2) => d1 && d2 && d2 >= start && d1 <= end;
+    const scheduledByProject = {};
+    const unscheduledFeatures = [];
+    for (const f of featureRows) {
+      const feature = {
+        id: f.id,
+        project_id: f.project_id,
+        name: f.name,
+        status: f.status,
+        priority: f.priority,
+        start_date: f.start_date,
+        target_date: f.target_date,
+        story_stats: {
+          total: f.total_stories,
+          completed: f.completed_stories,
+          total_points: f.total_points,
+          completed_points: f.completed_points,
+        },
+      };
+      if (!f.start_date || !f.target_date) {
+        unscheduledFeatures.push(feature);
+      } else if (inWindow(f.start_date, f.target_date)) {
+        (scheduledByProject[f.project_id] = scheduledByProject[f.project_id] || []).push(feature);
+      }
+      // else: feature outside window — drop from response
+    }
+
+    // Partition projects into scheduled vs unscheduled
+    const scheduledProjects = [];
+    const unscheduledProjects = [];
+    for (const p of projectRows) {
+      const features = scheduledByProject[p.id] || [];
+      const base = {
+        id: p.id,
+        name: p.name,
+        status: p.status,
+        health: p.health,
+        color: p.color,
+        start_date: p.start_date,
+        target_date: p.target_date,
+        story_stats: {
+          total: p.total_stories,
+          completed: p.completed_stories,
+          total_points: p.total_points,
+          completed_points: p.completed_points,
+        },
+        features,
+      };
+      if (!p.start_date || !p.target_date) {
+        unscheduledProjects.push(base);
+      } else {
+        scheduledProjects.push(base);
+      }
+    }
+
+    res.json({
+      range: { start, end },
+      projects: scheduledProjects,
+      unscheduled: {
+        projects: unscheduledProjects.map(p => ({ id: p.id, name: p.name, health: p.health })),
+        features: unscheduledFeatures.map(f => ({ id: f.id, project_id: f.project_id, name: f.name })),
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/projects/:id
 router.get('/:id', (req, res) => {
   try {

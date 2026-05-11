@@ -1,7 +1,9 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
+import ProjectsLayout from './components/ProjectsLayout';
 import HomePage from './pages/HomePage';
-import ProjectsPage from './pages/ProjectsPage';
+import ProjectsBoardPage from './pages/ProjectsBoardPage';
+import ProjectsRoadmapPage from './pages/ProjectsRoadmapPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import TeamPage from './pages/TeamPage';
 import TeamMemberPage from './pages/TeamMemberPage';
@@ -22,7 +24,11 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
-          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects" element={<ProjectsLayout />}>
+            <Route index element={<Navigate to="board" replace />} />
+            <Route path="board" element={<ProjectsBoardPage />} />
+            <Route path="roadmap" element={<ProjectsRoadmapPage />} />
+          </Route>
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/team" element={<TeamPage />} />
           <Route path="/team/:id" element={<TeamMemberPage />} />

@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Projects Roadmap — Implementation Plan (2026-05-11)</title>
+<style>
+  :root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --ink: #0f172a;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --blue: #3b82f6;
+    --green: #10b981;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --slate: #64748b;
+    --indigo: #6366f1;
+    --violet: #8b5cf6;
+    --teal: #14b8a6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
+  h1 { font-size: 32px; margin: 0 0 4px; }
+  h2 { font-size: 22px; margin: 40px 0 12px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  h3 { font-size: 16px; margin: 24px 0 8px; color: var(--ink); }
+  p, li { line-height: 1.55; color: #1f2937; }
+  .meta { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 14px 16px; border-radius: 8px; font-size: 12.5px; overflow-x: auto; }
+  code.inline { background: #eef2ff; color: #3730a3; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin: 16px 0; }
+  .grid { display: grid; gap: 16px; }
+  .grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #eef2ff; color: #4338ca; font-weight: 500; margin-right: 6px; }
+  .pill.green { background: #dcfce7; color: #166534; }
+  .pill.amber { background: #fef3c7; color: #92400e; }
+  .pill.red { background: #fee2e2; color: #991b1b; }
+  .pill.slate { background: #e2e8f0; color: #334155; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { background: #f1f5f9; font-weight: 600; }
+
+  /* ---- Mockup chrome ---- */
+  .mock {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+    overflow: hidden;
+    margin: 12px 0 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+  .mock-header {
+    background: #f8fafc;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .mock-header .dot { width: 10px; height: 10px; border-radius: 50%; background: #cbd5e1; }
+  .mock-body { padding: 0; }
+
+  /* App shell */
+  .shell { display: grid; grid-template-columns: 200px 1fr; min-height: 520px; }
+  .sidebar { background: #0f172a; color: #cbd5e1; padding: 16px 12px; font-size: 13px; }
+  .sidebar .logo { color: #fff; font-weight: 700; margin-bottom: 16px; font-size: 14px; }
+  .sidebar a { display: block; padding: 6px 10px; border-radius: 6px; color: #94a3b8; text-decoration: none; margin-bottom: 2px; }
+  .sidebar a.active { background: #1e293b; color: #fff; }
+  .content { padding: 20px 24px; background: #fff; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .tab { padding: 8px 14px; font-size: 13.5px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--ink); border-bottom-color: var(--blue); font-weight: 600; }
+  .btn { background: var(--blue); color: #fff; border: 0; padding: 6px 12px; font-size: 13px; border-radius: 6px; }
+  .btn.secondary { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+  .controls { display: flex; gap: 8px; align-items: center; }
+  .select { font-size: 12.5px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+
+  /* Gantt */
+  .gantt { width: 100%; }
+  .gantt-header-row, .gantt-row { display: grid; grid-template-columns: 220px 1fr; }
+  .gantt-side { padding: 6px 10px; border-right: 1px solid var(--line); font-size: 13px; }
+  .gantt-track { position: relative; height: 100%; border-bottom: 1px solid #f1f5f9; }
+  .gantt-grid { position: absolute; inset: 0; }
+  .gantt-col { position: absolute; top: 0; bottom: 0; border-left: 1px dashed #f1f5f9; }
+  .month-label { font-size: 11px; color: var(--muted); padding: 4px 6px; border-left: 1px solid var(--line); position: absolute; top: 0; height: 28px; display: flex; align-items: center; }
+  .gantt-bar {
+    position: absolute;
+    height: 18px;
+    border-radius: 4px;
+    top: 8px;
+    box-shadow: inset 0 -1px 0 rgba(0,0,0,.08);
+    color: #fff;
+    font-size: 11px;
+    padding: 0 8px;
+    line-height: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  .gantt-bar.project { height: 12px; top: 11px; opacity: .75; }
+  .gantt-row .gantt-side.feature { padding-left: 26px; color: var(--muted); font-size: 12.5px; }
+  .gantt-row.project-row { background: #f8fafc; font-weight: 600; }
+  .today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--red); z-index: 5; }
+  .today-label { position: absolute; top: -16px; background: var(--red); color: #fff; font-size: 10px; padding: 1px 4px; border-radius: 3px; transform: translateX(-50%); }
+
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin: 8px 0 12px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; }
+
+  /* Data flow */
+  .flow { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .flow svg { width: 100%; height: auto; display: block; }
+
+  .callout { background: #eff6ff; border-left: 4px solid var(--blue); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 13.5px; }
+  .warn { background: #fef3c7; border-left-color: var(--amber); }
+  .note { color: var(--muted); font-size: 13px; }
+  ol.steps > li { margin-bottom: 8px; }
+  hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 24px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Projects Roadmap — Implementation Plan</h1>
+  <div class="meta">manager-os • 2026-05-11 • Author: Claude • Status: <span class="pill">Draft for review</span></div>
+
+  <div class="card">
+    <h3 style="margin-top:0">TL;DR</h3>
+    <p>Add a <strong>Roadmap</strong> tab to the Projects area that renders a Gantt-style timeline of all projects with their features nested underneath. Reuses existing <code class="inline">projects.start_date</code> / <code class="inline">target_date</code> and <code class="inline">features.start_date</code> / <code class="inline">target_date</code> — no schema changes. One new lightweight API endpoint, one new page component, two presentational components. Filters by status/health and by date range. Click a bar to open the project or feature.</p>
+  </div>
+
+  <h2>1. Goals & Non-Goals</h2>
+  <div class="grid cols-2">
+    <div class="card">
+      <h3 style="margin-top:0">Goals</h3>
+      <ul>
+        <li>Single time-based view across all projects and their features.</li>
+        <li>Show schedule overlap, slip risk, and delivery clustering at a glance.</li>
+        <li>Drill in: click a project bar → <code class="inline">/projects/:id</code>; click a feature bar → project detail with feature focused.</li>
+        <li>Filter by project status, health, and a visible date window (quarter / half / year / custom).</li>
+        <li>Render entirely client-side after a single fetch; smooth for ~50 projects × ~10 features.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Non-Goals (YAGNI)</h3>
+      <ul>
+        <li>No drag-to-edit dates from the roadmap (edit stays in detail page modals).</li>
+        <li>No dependencies / blocked-by arrows between features.</li>
+        <li>No swim-lanes by team member (the existing <code class="inline">/api/timeline</code> already does that).</li>
+        <li>No baseline vs. actual comparison.</li>
+        <li>No print/export. (Browser print is fine if asked later.)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>2. UX Mockups</h2>
+
+  <h3>2.1 Roadmap view inside the Projects page</h3>
+  <p class="note">Roadmap is a sub-tab on the existing Projects page (alongside the current Kanban board), reached at <code class="inline">/projects/roadmap</code>. The Kanban moves to <code class="inline">/projects/board</code> and <code class="inline">/projects</code> redirects to the last-used tab (default: board).</p>
+
+  <div class="mock">
+    <div class="mock-header">
+      <span class="dot" style="background:#ef4444"></span>
+      <span class="dot" style="background:#f59e0b"></span>
+      <span class="dot" style="background:#10b981"></span>
+      <span style="margin-left:8px">manager-os — Projects › Roadmap</span>
+    </div>
+    <div class="mock-body">
+      <div class="shell">
+        <div class="sidebar">
+          <div class="logo">manager-os</div>
+          <a>Home</a>
+          <a class="active">Projects</a>
+          <a>Team</a>
+          <a>Sprints</a>
+          <a>Capacity</a>
+          <a>Blockers</a>
+          <a>Notes</a>
+          <a>Digest</a>
+        </div>
+        <div class="content">
+          <div class="toolbar">
+            <h3 style="margin:0; font-size:22px;">Projects</h3>
+            <button class="btn">+ Add Project</button>
+          </div>
+          <div class="tabs">
+            <div class="tab">Board</div>
+            <div class="tab active">Roadmap</div>
+          </div>
+          <div class="toolbar">
+            <div class="controls">
+              <select class="select"><option>Range: Next 12 months (by quarter)</option></select>
+              <select class="select"><option>Status: All</option></select>
+              <select class="select"><option>Health: All</option></select>
+              <select class="select"><option>Group by: Project</option></select>
+            </div>
+            <div class="controls">
+              <button class="btn secondary">Today</button>
+              <button class="btn secondary">‹</button>
+              <button class="btn secondary">›</button>
+            </div>
+          </div>
+
+          <div class="legend">
+            <div class="legend-item"><span class="swatch" style="background:#3b82f6"></span> Project span</div>
+            <div class="legend-item"><span class="swatch" style="background:#10b981"></span> Feature (on track)</div>
+            <div class="legend-item"><span class="swatch" style="background:#f59e0b"></span> Feature (at risk)</div>
+            <div class="legend-item"><span class="swatch" style="background:#ef4444"></span> Feature (off track)</div>
+            <div class="legend-item"><span style="display:inline-block; width:2px; height:12px; background:#ef4444;"></span> Today</div>
+          </div>
+
+          <div class="gantt">
+            <!-- Quarter header row -->
+            <div style="display:grid; grid-template-columns: 220px 1fr; border-top:1px solid var(--line); background:#eef2ff;">
+              <div style="padding:6px 10px; font-size:11px; color:#4338ca; font-weight:600; letter-spacing:.05em; text-transform:uppercase;">Quarter</div>
+              <div style="position:relative; height:24px;">
+                <div style="position:absolute; left:0%;   width:25%; top:0; bottom:0; border-left:1px solid #c7d2fe; padding:4px 8px; font-size:11px; color:#4338ca; font-weight:600;">Q2 '26 · Apr – Jun</div>
+                <div style="position:absolute; left:25%;  width:25%; top:0; bottom:0; border-left:1px solid #c7d2fe; padding:4px 8px; font-size:11px; color:#4338ca; font-weight:600;">Q3 '26 · Jul – Sep</div>
+                <div style="position:absolute; left:50%;  width:25%; top:0; bottom:0; border-left:1px solid #c7d2fe; padding:4px 8px; font-size:11px; color:#4338ca; font-weight:600;">Q4 '26 · Oct – Dec</div>
+                <div style="position:absolute; left:75%;  width:25%; top:0; bottom:0; border-left:1px solid #c7d2fe; padding:4px 8px; font-size:11px; color:#4338ca; font-weight:600;">Q1 '27 · Jan – Mar</div>
+              </div>
+            </div>
+            <!-- Month header row -->
+            <div style="display:grid; grid-template-columns: 220px 1fr; border-top:1px solid var(--line); border-bottom:1px solid var(--line); background:#f8fafc;">
+              <div style="padding:6px 10px; font-size:12px; color:var(--muted);">Project / Feature</div>
+              <div style="position:relative; height:26px;">
+                <div class="month-label" style="left:0%;     width:8.333%;">Apr</div>
+                <div class="month-label" style="left:8.333%; width:8.333%;">May</div>
+                <div class="month-label" style="left:16.66%; width:8.333%;">Jun</div>
+                <div class="month-label" style="left:25%;    width:8.333%; border-left:1px solid #c7d2fe;">Jul</div>
+                <div class="month-label" style="left:33.33%; width:8.333%;">Aug</div>
+                <div class="month-label" style="left:41.66%; width:8.333%;">Sep</div>
+                <div class="month-label" style="left:50%;    width:8.333%; border-left:1px solid #c7d2fe;">Oct</div>
+                <div class="month-label" style="left:58.33%; width:8.333%;">Nov</div>
+                <div class="month-label" style="left:66.66%; width:8.333%;">Dec</div>
+                <div class="month-label" style="left:75%;    width:8.333%; border-left:1px solid #c7d2fe;">Jan</div>
+                <div class="month-label" style="left:83.33%; width:8.333%;">Feb</div>
+                <div class="month-label" style="left:91.66%; width:8.333%;">Mar</div>
+              </div>
+            </div>
+
+            <!-- Project A: Onboarding Revamp (May 8 → Aug 30) -->
+            <div class="gantt-row project-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side">🟢 Onboarding Revamp</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-grid">
+                  <div class="gantt-col" style="left:25%;  border-left:1px solid #c7d2fe;"></div>
+                  <div class="gantt-col" style="left:50%;  border-left:1px solid #c7d2fe;"></div>
+                  <div class="gantt-col" style="left:75%;  border-left:1px solid #c7d2fe;"></div>
+                  <div class="gantt-col" style="left:8.333%;"></div>
+                  <div class="gantt-col" style="left:16.66%;"></div>
+                  <div class="gantt-col" style="left:33.33%;"></div>
+                  <div class="gantt-col" style="left:41.66%;"></div>
+                  <div class="gantt-col" style="left:58.33%;"></div>
+                  <div class="gantt-col" style="left:66.66%;"></div>
+                  <div class="gantt-col" style="left:83.33%;"></div>
+                  <div class="gantt-col" style="left:91.66%;"></div>
+                </div>
+                <div class="gantt-bar project" style="background:#3b82f6; left:10.2%; width:30.9%;">Onboarding Revamp · May 8 → Aug 30</div>
+              </div>
+            </div>
+            <div class="gantt-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side feature">Sign-up redesign</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar" style="background:#10b981; left:11.3%; width:10.6%;">Sign-up redesign</div>
+              </div>
+            </div>
+            <div class="gantt-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side feature">Welcome tour</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar" style="background:#f59e0b; left:19.7%; width:12%;">Welcome tour (at risk)</div>
+              </div>
+            </div>
+            <div class="gantt-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side feature">Activation metrics</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar" style="background:#10b981; left:29.5%; width:11.6%;">Activation metrics</div>
+              </div>
+            </div>
+
+            <!-- Project B: Billing Migration (Jun 15 → Oct 1) -->
+            <div class="gantt-row project-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side">🟡 Billing Migration</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar project" style="background:#8b5cf6; left:21.3%; width:28.7%;">Billing Migration · Jun 15 → Oct 1</div>
+              </div>
+            </div>
+            <div class="gantt-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side feature">Stripe adapter</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar" style="background:#10b981; left:21.9%; width:12.5%;">Stripe adapter</div>
+              </div>
+            </div>
+            <div class="gantt-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side feature">Dunning emails</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar" style="background:#ef4444; left:33.3%; width:13%;">Dunning (off track)</div>
+              </div>
+            </div>
+            <div class="gantt-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side feature">Self-serve refunds</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar" style="background:#10b981; left:38.5%; width:11.5%;">Self-serve refunds</div>
+              </div>
+            </div>
+
+            <!-- Project C: Search Rewrite (May 20 → Aug 10) -->
+            <div class="gantt-row project-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side">🔴 Search Rewrite</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar project" style="background:#14b8a6; left:13.4%; width:22.9%;">Search Rewrite · May 20 → Aug 10</div>
+              </div>
+            </div>
+            <div class="gantt-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side feature">Index pipeline</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar" style="background:#10b981; left:14.8%; width:10.2%;">Index pipeline</div>
+              </div>
+            </div>
+            <div class="gantt-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side feature">Ranking model</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar" style="background:#ef4444; left:25%; width:11.3%;">Ranking model (off track)</div>
+              </div>
+            </div>
+
+            <!-- Project D: Mobile App Launch (Nov 1 → Mar 15) — spans Q4'26 + Q1'27 -->
+            <div class="gantt-row project-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side">🟢 Mobile App Launch</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar project" style="background:#6366f1; left:58.3%; width:37.9%;">Mobile App Launch · Nov 1 → Mar 15</div>
+              </div>
+            </div>
+            <div class="gantt-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side feature">iOS shell</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar" style="background:#10b981; left:58.3%; width:16.7%;">iOS shell</div>
+              </div>
+            </div>
+            <div class="gantt-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side feature">Android shell</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar" style="background:#10b981; left:66.7%; width:21.6%;">Android shell</div>
+              </div>
+            </div>
+            <div class="gantt-row" style="grid-template-columns:220px 1fr;">
+              <div class="gantt-side feature">Beta launch</div>
+              <div class="gantt-track" style="height:34px;">
+                <div class="gantt-bar" style="background:#f59e0b; left:83.3%; width:12.9%;">Beta launch (at risk)</div>
+              </div>
+            </div>
+
+            <!-- Today indicator overlay (May 11 → ~11.4% across the 12-month window) -->
+            <div style="position:relative; height:0;">
+              <div class="today-line" style="position:absolute; left:calc(220px + 11.4%); top:-560px; height:560px;">
+                <div class="today-label">Today · May 11</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>2.2 Hover tooltip</h3>
+  <div class="card" style="display:flex; gap:24px; align-items:center;">
+    <div style="border:1px solid var(--line); border-radius:8px; padding:12px 14px; max-width:300px; background:#0f172a; color:#e2e8f0; font-size:12.5px;">
+      <div style="font-weight:600; margin-bottom:4px;">Welcome tour</div>
+      <div style="color:#94a3b8;">Onboarding Revamp</div>
+      <div style="margin-top:6px;">Jun 12 → Jul 26 · 6 weeks</div>
+      <div style="margin-top:4px;">8 / 14 stories done · 21 / 34 pts</div>
+      <div style="margin-top:4px;"><span class="pill amber">at risk</span></div>
+    </div>
+    <p class="note">Tooltip shows feature/project name, parent project, date span, story progress, health pill. Triggered on bar hover; suppressed on touch devices.</p>
+  </div>
+
+  <h3>2.3 Empty &amp; degraded states</h3>
+  <div class="grid cols-2">
+    <div class="card">
+      <strong>No dates set</strong>
+      <p class="note">Projects/features without <code class="inline">start_date</code> or <code class="inline">target_date</code> are listed in a collapsed "Unscheduled" group above the timeline. From there a user can click into the project to add dates.</p>
+    </div>
+    <div class="card">
+      <strong>Out of range</strong>
+      <p class="note">Items that fall entirely outside the visible window are hidden but counted in a "+3 hidden" pill at the right edge with a button to expand the range.</p>
+    </div>
+  </div>
+
+  <h2>3. Data Flow</h2>
+
+  <div class="flow">
+    <svg viewBox="0 0 1100 360" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+        </marker>
+        <style>
+          .box { fill: #fff; stroke: #cbd5e1; stroke-width: 1.5; rx: 8; }
+          .box-db { fill: #f1f5f9; stroke: #64748b; }
+          .box-server { fill: #ecfeff; stroke: #06b6d4; }
+          .box-client { fill: #eef2ff; stroke: #6366f1; }
+          .box-ui { fill: #fef3c7; stroke: #f59e0b; }
+          .lbl { font: 600 13px -apple-system, sans-serif; fill: #0f172a; }
+          .sub { font: 11.5px ui-monospace, monospace; fill: #475569; }
+          .edge { stroke: #475569; stroke-width: 1.5; fill: none; }
+          .edgelbl { font: 11px -apple-system, sans-serif; fill: #475569; }
+        </style>
+      </defs>
+
+      <!-- SQLite -->
+      <rect class="box box-db" x="20" y="130" width="180" height="100" rx="8"/>
+      <text class="lbl" x="110" y="160" text-anchor="middle">SQLite</text>
+      <text class="sub" x="110" y="180" text-anchor="middle">projects</text>
+      <text class="sub" x="110" y="196" text-anchor="middle">features</text>
+      <text class="sub" x="110" y="212" text-anchor="middle">stories (counts)</text>
+
+      <!-- Server route -->
+      <rect class="box box-server" x="260" y="120" width="220" height="120" rx="8"/>
+      <text class="lbl" x="370" y="148" text-anchor="middle">GET /api/projects/roadmap</text>
+      <text class="sub" x="370" y="170" text-anchor="middle">?start=YYYY-MM-DD</text>
+      <text class="sub" x="370" y="186" text-anchor="middle">&amp;end=YYYY-MM-DD</text>
+      <text class="sub" x="370" y="208" text-anchor="middle">single JOIN query</text>
+      <text class="sub" x="370" y="224" text-anchor="middle">groups in JS</text>
+
+      <!-- API client -->
+      <rect class="box box-client" x="540" y="120" width="200" height="120" rx="8"/>
+      <text class="lbl" x="640" y="148" text-anchor="middle">api.get(...)</text>
+      <text class="sub" x="640" y="170" text-anchor="middle">client/src/lib/api.js</text>
+      <text class="sub" x="640" y="194" text-anchor="middle">SWR-ish: cached</text>
+      <text class="sub" x="640" y="210" text-anchor="middle">in useRoadmapData</text>
+
+      <!-- Page state -->
+      <rect class="box box-client" x="540" y="20" width="200" height="80" rx="8"/>
+      <text class="lbl" x="640" y="48" text-anchor="middle">RoadmapPage</text>
+      <text class="sub" x="640" y="68" text-anchor="middle">range, filters in URL</text>
+      <text class="sub" x="640" y="84" text-anchor="middle">useSearchParams</text>
+
+      <!-- Components -->
+      <rect class="box box-ui" x="800" y="20" width="270" height="80" rx="8"/>
+      <text class="lbl" x="935" y="48" text-anchor="middle">RoadmapToolbar</text>
+      <text class="sub" x="935" y="68" text-anchor="middle">range / status / health</text>
+      <text class="sub" x="935" y="84" text-anchor="middle">emits change → URL params</text>
+
+      <rect class="box box-ui" x="800" y="130" width="270" height="100" rx="8"/>
+      <text class="lbl" x="935" y="158" text-anchor="middle">RoadmapGantt</text>
+      <text class="sub" x="935" y="180" text-anchor="middle">pure presentational</text>
+      <text class="sub" x="935" y="196" text-anchor="middle">computes bar left/width</text>
+      <text class="sub" x="935" y="212" text-anchor="middle">renders today line</text>
+
+      <rect class="box box-ui" x="800" y="260" width="270" height="80" rx="8"/>
+      <text class="lbl" x="935" y="288" text-anchor="middle">UnscheduledList</text>
+      <text class="sub" x="935" y="308" text-anchor="middle">projects/features w/o dates</text>
+      <text class="sub" x="935" y="324" text-anchor="middle">click → detail page</text>
+
+      <!-- Edges -->
+      <path class="edge" d="M 200 180 L 260 180" marker-end="url(#arrow)"/>
+      <text class="edgelbl" x="220" y="172">SQL</text>
+
+      <path class="edge" d="M 480 180 L 540 180" marker-end="url(#arrow)"/>
+      <text class="edgelbl" x="490" y="172">JSON</text>
+
+      <path class="edge" d="M 640 120 L 640 100" marker-end="url(#arrow)"/>
+      <text class="edgelbl" x="650" y="114">data</text>
+
+      <path class="edge" d="M 740 60 L 800 60" marker-end="url(#arrow)"/>
+      <text class="edgelbl" x="745" y="52">props</text>
+
+      <path class="edge" d="M 740 180 L 800 180" marker-end="url(#arrow)"/>
+      <path class="edge" d="M 740 290 L 800 290" marker-end="url(#arrow)"/>
+
+      <path class="edge" d="M 935 100 C 935 110, 935 110, 935 130" marker-end="url(#arrow)"/>
+      <text class="edgelbl" x="945" y="116">filter</text>
+
+      <!-- Loop: bar click → navigate -->
+      <path class="edge" d="M 935 230 C 1050 240, 1080 80, 740 50" stroke-dasharray="4 4" marker-end="url(#arrow)"/>
+      <text class="edgelbl" x="990" y="60">click bar → navigate(/projects/:id)</text>
+    </svg>
+  </div>
+
+  <div class="callout">
+    <strong>One round trip.</strong> The page makes a single <code class="inline">GET /api/projects/roadmap?start&amp;end</code> call. All re-grouping, layout math, and filter application happens in the client. Changing the visible range refetches; flipping status/health filters does not.
+  </div>
+
+  <h2>4. API Design</h2>
+
+  <h3>4.1 New endpoint</h3>
+  <pre>GET /api/projects/roadmap?start=YYYY-MM-DD&amp;end=YYYY-MM-DD
+
+200 OK
+{
+  "range": { "start": "2026-04-01", "end": "2027-03-31", "zoom": "quarter" },
+  "projects": [
+    {
+      "id": 12,
+      "name": "Onboarding Revamp",
+      "status": "active",
+      "health": "green",
+      "color": "#3B82F6",
+      "start_date": "2026-05-08",
+      "target_date": "2026-08-30",
+      "feature_count": 3,
+      "story_stats": { "total": 42, "completed": 18, "total_points": 96, "completed_points": 41 },
+      "features": [
+        {
+          "id": 88,
+          "name": "Sign-up redesign",
+          "status": "in_progress",
+          "priority": "high",
+          "start_date": "2026-05-12",
+          "target_date": "2026-06-20",
+          "story_stats": { "total": 14, "completed": 9, "total_points": 32, "completed_points": 21 }
+        }
+      ]
+    }
+  ],
+  "unscheduled": {
+    "projects": [ { "id": 19, "name": "Mobile shell" } ],
+    "features": [ { "id": 102, "project_id": 12, "name": "Notifications" } ]
+  }
+}</pre>
+
+  <h3>4.2 Why a new endpoint instead of reusing <code class="inline">GET /api/projects</code>?</h3>
+  <ul>
+    <li><code class="inline">GET /api/projects</code> already returns nested features, but with no story stats per feature and no range filter — we'd over-fetch on every range change and still miss per-feature progress.</li>
+    <li>The existing <code class="inline">GET /api/timeline</code> groups by team member; reusing it would force client-side regrouping over a much larger payload.</li>
+    <li>A purpose-built endpoint keeps the SQL focused (two queries: projects-in-range + features-in-range with story aggregates) and the payload tight.</li>
+  </ul>
+
+  <h3>4.3 SQL sketch</h3>
+  <pre>-- Projects that overlap the window OR are unscheduled
+SELECT p.*, ...story_stats...
+FROM projects p
+LEFT JOIN ( /* same story aggregate as GET /api/projects */ ) s ON s.project_id = p.id
+WHERE p.start_date IS NULL OR p.target_date IS NULL
+   OR (p.target_date >= ? AND p.start_date &lt;= ?);
+
+-- Features for those projects, with per-feature story aggregate
+SELECT f.*, COUNT(st.id) AS total, SUM(...) AS completed, ...
+FROM features f
+LEFT JOIN stories st ON st.feature_id = f.id
+WHERE f.project_id IN (...)
+GROUP BY f.id;</pre>
+
+  <h2>5. Components &amp; Files</h2>
+  <table>
+    <thead><tr><th>File</th><th>Kind</th><th>Responsibility</th></tr></thead>
+    <tbody>
+      <tr><td><code class="inline">server/routes/projects.js</code></td><td>edit</td><td>Add <code class="inline">GET /roadmap</code> handler before <code class="inline">/:id</code> route to avoid <code class="inline">id="roadmap"</code> collision.</td></tr>
+      <tr><td><code class="inline">client/src/pages/ProjectsPage.jsx</code></td><td>edit</td><td>Wrap existing Kanban in a tab; add Roadmap tab.</td></tr>
+      <tr><td><code class="inline">client/src/pages/ProjectsRoadmapPage.jsx</code></td><td>new</td><td>Container: fetch, URL-param state, render toolbar+gantt+unscheduled.</td></tr>
+      <tr><td><code class="inline">client/src/components/RoadmapToolbar.jsx</code></td><td>new</td><td>Range presets, prev/next, today, filter selects.</td></tr>
+      <tr><td><code class="inline">client/src/components/RoadmapGantt.jsx</code></td><td>new</td><td>Header months, project+feature rows, bar positioning, today line.</td></tr>
+      <tr><td><code class="inline">client/src/components/RoadmapBar.jsx</code></td><td>new</td><td>One bar + tooltip; handles click → navigate.</td></tr>
+      <tr><td><code class="inline">client/src/components/UnscheduledList.jsx</code></td><td>new</td><td>Collapsible list of items missing dates.</td></tr>
+      <tr><td><code class="inline">client/src/lib/roadmap.js</code></td><td>new</td><td>Pure helpers: <code class="inline">computeBarPosition</code>, <code class="inline">healthOfFeature</code>, <code class="inline">monthTicks(range)</code>.</td></tr>
+      <tr><td><code class="inline">client/src/App.jsx</code></td><td>edit</td><td>Routes: <code class="inline">/projects</code> redirects to <code class="inline">/projects/board</code>; add <code class="inline">/projects/board</code> &amp; <code class="inline">/projects/roadmap</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>5.1 Bar position math (in <code class="inline">lib/roadmap.js</code>)</h3>
+  <pre>function computeBarPosition({ start, target, rangeStart, rangeEnd }) {
+  const r0 = new Date(rangeStart).getTime();
+  const r1 = new Date(rangeEnd).getTime();
+  const s  = Math.max(new Date(start).getTime(),  r0);
+  const e  = Math.min(new Date(target).getTime(), r1);
+  if (e &lt;= s) return null;          // entirely outside window
+  const span = r1 - r0;
+  return {
+    leftPct:  ((s - r0) / span) * 100,
+    widthPct: ((e - s) / span) * 100,
+    clippedStart: s &gt; new Date(start).getTime(),
+    clippedEnd:   e &lt; new Date(target).getTime(),
+  };
+}</pre>
+  <p class="note">Clipped flag drives a fade-out edge on the bar so users see "extends beyond view."</p>
+
+  <h3>5.2 Feature health derivation (client-side)</h3>
+  <p>Features don't have a stored health field. Derive from progress + dates:</p>
+  <ul>
+    <li><strong>Off track (red):</strong> status not complete AND <code class="inline">target_date &lt; today</code>.</li>
+    <li><strong>At risk (amber):</strong> <code class="inline">completion_ratio &lt; expected_ratio - 0.2</code>, where <code class="inline">expected_ratio</code> is time elapsed in [start, target].</li>
+    <li><strong>On track (green):</strong> everything else (including features with no stories yet).</li>
+  </ul>
+
+  <h2>6. URL &amp; State Shape</h2>
+  <p>Filter state lives in the URL so views are shareable and survive reloads:</p>
+  <pre>/projects/roadmap?start=2026-04-01&amp;end=2027-03-31&amp;zoom=quarter&amp;status=active,planning&amp;health=green,yellow,red</pre>
+  <p>Range presets: <code class="inline">3m</code>, <code class="inline">6m</code>, <code class="inline">12m</code> (default, snapped to current quarter start), <code class="inline">custom</code>. <code class="inline">zoom</code> is <code class="inline">month</code> or <code class="inline">quarter</code> — the latter shows the Q-band header above months and is the default for 12m. Stored as concrete dates so the URL is stable when shared.</p>
+
+  <h2>7. Implementation Steps</h2>
+  <ol class="steps">
+    <li><strong>Server:</strong> add <code class="inline">GET /api/projects/roadmap</code> in <code class="inline">server/routes/projects.js</code> <em>above</em> the <code class="inline">/:id</code> route. Two queries (projects + features) with one shared story-aggregate subquery; assemble in JS.</li>
+    <li><strong>Routing:</strong> in <code class="inline">App.jsx</code> change <code class="inline">/projects</code> to redirect to <code class="inline">/projects/board</code>; add <code class="inline">/projects/board</code> (Kanban) and <code class="inline">/projects/roadmap</code> (new page). Both share the same <code class="inline">ProjectsPage</code> shell that renders the tab bar + active route's <code class="inline">&lt;Outlet/&gt;</code>.</li>
+    <li><strong>Helpers:</strong> write <code class="inline">lib/roadmap.js</code> with <code class="inline">computeBarPosition</code>, <code class="inline">monthTicks</code>, <code class="inline">healthOfFeature</code>. No tests in repo, but functions are pure so a small <code class="inline">console.assert</code>-style sanity block is fine to keep until verified by hand.</li>
+    <li><strong>Presentation:</strong> build <code class="inline">RoadmapGantt</code> with CSS grid (220px sidebar + 1fr track) and absolute-positioned bars. No external Gantt lib — keeps bundle small and matches the codebase's "thin deps" preference.</li>
+    <li><strong>Toolbar:</strong> range presets, prev/next (shift window by half its size), Today button, status &amp; health multi-select.</li>
+    <li><strong>Container:</strong> <code class="inline">ProjectsRoadmapPage</code> reads URL params, fetches once per range change, memoises filtered projects, passes to children.</li>
+    <li><strong>Unscheduled section:</strong> collapsible card listing projects/features with missing dates; each item links to the detail page.</li>
+    <li><strong>Manual QA:</strong> verify with the seed dataset (<code class="inline">cd server &amp;&amp; npm run seed</code>) and a hand-crafted "project crossing the window edge" case.</li>
+  </ol>
+
+  <h2>8. Edge Cases</h2>
+  <ul>
+    <li><strong>Feature ends before project starts</strong> (data entry mistake): show the feature bar where its own dates say, regardless of project span.</li>
+    <li><strong>Project has no features:</strong> still show the project row with just the project span bar.</li>
+    <li><strong>Feature outside project span:</strong> render normally; do not auto-clamp — surface the inconsistency rather than hide it.</li>
+    <li><strong>start_date = target_date:</strong> render a 4px-wide milestone diamond instead of a bar.</li>
+    <li><strong>Very long project (&gt; window):</strong> bar visually extends to both edges with a faded gradient.</li>
+    <li><strong>Time zones:</strong> dates in DB are <code class="inline">YYYY-MM-DD</code> strings; parse as local midnight and avoid <code class="inline">new Date('2026-05-11')</code> which is UTC — use <code class="inline">new Date(y, m-1, d)</code>.</li>
+  </ul>
+
+  <h2>9. Performance Notes</h2>
+  <ul>
+    <li>Expected payload: ~30 projects × ~8 features ≈ 30 KB JSON. No virtualisation needed.</li>
+    <li>Memoise <code class="inline">filtered + positioned</code> rows with <code class="inline">useMemo</code> keyed on <code class="inline">[data, filters, range]</code>.</li>
+    <li>Server query is two indexable selects; story-aggregate already exists in <code class="inline">GET /api/projects</code> with acceptable latency.</li>
+  </ul>
+
+  <h2>10. Risks &amp; Open Questions</h2>
+  <div class="grid cols-2">
+    <div class="card">
+      <h3 style="margin-top:0">Risks</h3>
+      <ul>
+        <li>Health heuristic for features may feel arbitrary — keep the formula visible in the tooltip ("expected 60% by today, at 38%").</li>
+        <li>If many features lack dates, the unscheduled list could dominate. Mitigation: cap to first 10 with "show more."</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Open questions</h3>
+      <ul>
+        <li>Should the roadmap be the <em>default</em> Projects tab (vs. the current board)? Recommend: keep board as default to avoid surprising existing users; remember last choice in <code class="inline">localStorage</code>.</li>
+        <li>Quarter-band header is now the default for 12m. For 3m/6m windows, hide the Q-band and show only months — confirm that's the right default.</li>
+        <li>Year boundary in the 12m view: should we render a stronger vertical rule between Dec and Jan (currently a quarter divider) and a small "2027" label? Cheap to add.</li>
+        <li>Color source: use <code class="inline">project.color</code> for the project span bar and a status-derived color for feature bars — confirm this is the desired hierarchy.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>11. Rollout</h2>
+  <ol class="steps">
+    <li>Single PR. No migration, no env changes.</li>
+    <li>Manual smoke test with seeded DB, then with a backup of the user's real DB.</li>
+    <li>Merge to main; mention in the next weekly digest entry.</li>
+  </ol>
+
+  <hr class="soft"/>
+  <p class="note">Next step on approval: spin a worktree, write the implementation plan (superpowers:writing-plans) keyed off the section numbering here, and execute.</p>
+
+</div>
+</body>
+</html>
