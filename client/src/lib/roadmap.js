@@ -33,8 +33,10 @@ export function snapToQuarterStart(date) {
 
 /** Add `n` months to a date (last day clamps within target month). */
 export function addMonths(date, n) {
-  const d = new Date(date.getFullYear(), date.getMonth() + n, date.getDate());
-  return d;
+  const target = new Date(date.getFullYear(), date.getMonth() + n, 1);
+  const lastDayOfTarget = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(date.getDate(), lastDayOfTarget));
+  return target;
 }
 
 /**
@@ -130,8 +132,10 @@ export function computeBarPosition({ start, target, rangeStart, rangeEnd }) {
 export function todayPercent(rangeStart, rangeEnd) {
   const r0 = parseLocalDate(rangeStart);
   const r1 = parseLocalDate(rangeEnd);
+  if (!r0 || !r1) return null;
+  const todayStr = formatLocalDate(new Date());
+  if (todayStr < rangeStart || todayStr > rangeEnd) return null;
   const now = new Date();
-  if (now < r0 || now > r1) return null;
   return ((now.getTime() - r0.getTime()) / (r1.getTime() - r0.getTime())) * 100;
 }
 
