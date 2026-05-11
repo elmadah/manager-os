@@ -28,7 +28,7 @@ export default function RoadmapBar({ position, color, label, kind, tooltip, onCl
       {kind === 'feature' && label}
       {hover && tooltip && (
         <div
-          className="absolute z-20 bg-slate-900 text-slate-100 text-xs rounded-md px-3 py-2 shadow-lg pointer-events-none whitespace-nowrap"
+          className="absolute z-20 bg-slate-900 text-slate-100 text-xs rounded-md px-3 py-2 shadow-lg pointer-events-none whitespace-pre-line"
           style={{ top: 'calc(100% + 6px)', left: 0 }}
         >
           {tooltip}
