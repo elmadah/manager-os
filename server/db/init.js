@@ -67,6 +67,7 @@ const db = {
     }
 
     migrate('projects', 'color', "TEXT DEFAULT '#3B82F6'");
+    migrate('projects', 'is_starred', 'INTEGER DEFAULT 0');
     migrate('features', 'start_date', 'TEXT');
     migrate('features', 'target_date', 'TEXT');
     migrate('todos', 'sort_order', 'INTEGER DEFAULT 0');

@@ -73,6 +73,7 @@ router.get('/', (req, res) => {
       color: p.color,
       start_date: p.start_date,
       target_date: p.target_date,
+      is_starred: p.is_starred ? 1 : 0,
       created_at: p.created_at,
       updated_at: p.updated_at,
       feature_count: p.feature_count,
@@ -297,11 +298,11 @@ router.put('/:id', (req, res) => {
     const existing = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Project not found' });
 
-    const { name, description, status, health, color, start_date, target_date } = req.body;
+    const { name, description, status, health, color, start_date, target_date, is_starred } = req.body;
     db.prepare(`
       UPDATE projects SET
         name = ?, description = ?, status = ?, health = ?, color = ?,
-        start_date = ?, target_date = ?, updated_at = datetime('now')
+        start_date = ?, target_date = ?, is_starred = ?, updated_at = datetime('now')
       WHERE id = ?
     `).run(
       name ?? existing.name,
@@ -311,6 +312,7 @@ router.put('/:id', (req, res) => {
       color ?? existing.color,
       start_date ?? existing.start_date,
       target_date ?? existing.target_date,
+      is_starred === undefined ? (existing.is_starred ?? 0) : (is_starred ? 1 : 0),
       req.params.id
     );
 

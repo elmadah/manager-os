@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderKanban, Users, AlertTriangle, Zap, ShieldAlert } from 'lucide-react';
+import { Plus, FolderKanban, Users, AlertTriangle, Zap, ShieldAlert, Star } from 'lucide-react';
 import api from '../lib/api';
 import CreateProjectModal from '../components/CreateProjectModal';
 import SprintPulse from '../components/SprintPulse';
@@ -44,7 +44,8 @@ export default function HomePage() {
         api.get('/blockers?status=active').catch(() => []),
       ]);
 
-      setProjects(projectsData);
+      const starred = projectsData.filter((p) => p.is_starred);
+      setProjects(starred);
 
       // Count blockers per project (only critical + high)
       const counts = {};
@@ -109,15 +110,30 @@ export default function HomePage() {
       {projects.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-xl border border-gray-200">
           <FolderKanban size={48} className="mx-auto text-gray-300 mb-4" />
-          <h2 className="text-lg font-semibold text-gray-700 mb-2">No projects yet</h2>
-          <p className="text-gray-500 mb-6">Create your first project to get started.</p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={16} />
-            Create your first project
-          </button>
+          <h2 className="text-lg font-semibold text-gray-700 mb-2">
+            {stats.totalProjects === 0 ? 'No projects yet' : 'No starred projects'}
+          </h2>
+          <p className="text-gray-500 mb-6">
+            {stats.totalProjects === 0
+              ? 'Create your first project to get started.'
+              : 'Star a project from its detail page to pin it to your dashboard.'}
+          </p>
+          {stats.totalProjects === 0 ? (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus size={16} />
+              Create your first project
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/projects')}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Browse projects
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -177,7 +193,10 @@ function ProjectCard({ project, blockerCount, onClick }) {
     >
       {/* Name + Status + Health */}
       <div className="flex items-start justify-between mb-3">
-        <h3 className="text-lg font-bold text-gray-900 leading-tight">{project.name}</h3>
+        <h3 className="text-lg font-bold text-gray-900 leading-tight flex items-center gap-1.5">
+          <Star size={14} className="fill-yellow-500 text-yellow-500 shrink-0" />
+          {project.name}
+        </h3>
         <div className="flex items-center gap-2 ml-2 shrink-0">
           <span className={`w-2.5 h-2.5 rounded-full ${HEALTH_COLORS[project.health]}`} />
           <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${STATUS_STYLES[project.status]}`}>
