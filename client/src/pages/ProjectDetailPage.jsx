@@ -4,7 +4,7 @@ import {
   ArrowLeft, Plus, ChevronDown, ChevronRight, Pencil, Trash2,
   X, BarChart3, Layers, BookOpen, Target, RefreshCw, TrendingUp,
   CheckSquare, Square, Calendar, AlertCircle, ListTodo, GripVertical,
-  Activity, ShieldCheck,
+  Activity, ShieldCheck, Star,
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import api from '../lib/api';
@@ -449,6 +449,27 @@ export default function ProjectDetailPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={async () => {
+                const next = project.is_starred ? 0 : 1;
+                try {
+                  await api.put(`/projects/${id}`, { is_starred: next });
+                  setProject(prev => ({ ...prev, is_starred: next }));
+                  toast.success(next ? 'Pinned to dashboard' : 'Removed from dashboard');
+                } catch {
+                  toast.error('Failed to update star');
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border ${
+                project.is_starred
+                  ? 'text-yellow-700 bg-yellow-50 border-yellow-200 hover:bg-yellow-100'
+                  : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'
+              }`}
+              title={project.is_starred ? 'Unstar (remove from dashboard)' : 'Star (show on dashboard)'}
+            >
+              <Star size={14} className={project.is_starred ? 'fill-yellow-500 text-yellow-500' : ''} />
+              {project.is_starred ? 'Starred' : 'Star'}
+            </button>
             <button
               onClick={() => setShowEditProject(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"

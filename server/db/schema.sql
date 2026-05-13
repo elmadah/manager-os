@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS projects (
   color TEXT DEFAULT '#3B82F6',
   start_date TEXT,
   target_date TEXT,
+  is_starred INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
