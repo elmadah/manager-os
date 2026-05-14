@@ -66,8 +66,11 @@ export default function StoryEditModal({ story, teamMembers, onClose, onSave }) 
     setForm(prev => ({ ...prev, feature_id: '' }));
   }
 
+  const needsFeature = Boolean(selectedProjectId) && !form.feature_id;
+
   async function handleSubmit(e) {
     e.preventDefault();
+    if (needsFeature) return;
     setSubmitting(true);
     await onSave(story.id, {
       ...form,
@@ -116,13 +119,17 @@ export default function StoryEditModal({ story, teamMembers, onClose, onSave }) 
                 value={form.feature_id}
                 onChange={handleChange}
                 disabled={!selectedProjectId}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-400"
+                required={Boolean(selectedProjectId)}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-400 ${needsFeature ? 'border-red-400' : 'border-gray-300'}`}
               >
                 <option value="">Unassigned</option>
                 {featuresForProject.map(f => (
                   <option key={f.id} value={f.id}>{f.name}</option>
                 ))}
               </select>
+              {needsFeature && (
+                <p className="mt-1 text-xs text-red-600">Pick a feature to assign this story to the selected project.</p>
+              )}
             </div>
           </div>
 
@@ -212,7 +219,7 @@ export default function StoryEditModal({ story, teamMembers, onClose, onSave }) 
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || needsFeature}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
               {submitting ? 'Saving…' : 'Save Changes'}
