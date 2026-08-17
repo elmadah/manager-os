@@ -11,28 +11,78 @@ export default function PullRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
+  const [failedSections, setFailedSections] = useState([]);
   const autoSyncedRef = useRef(false);
+  // Monotonically increasing request id. Each load() captures the id it was
+  // issued at; when a response lands, we only apply it (and only clear the
+  // loading flag) if no newer request has been issued in the meantime. This
+  // stops a slow, now-stale response from overwriting the data for the
+  // filters currently shown in the URL.
+  const requestIdRef = useRef(0);
 
   const load = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
-    try {
-      const qs = queryString ? `?${queryString}` : '';
-      const [list, summary, bySprint, byRepo, byAuthor, filterOptions] = await Promise.all([
-        api.get(`/pull-requests${qs}`),
-        api.get(`/pull-requests/summary${qs}`),
-        api.get(`/pull-requests/by-sprint${qs}`),
-        api.get(`/pull-requests/by-repo${qs}`),
-        api.get(`/pull-requests/by-author${qs}`),
-        api.get('/pull-requests/filters'),
-      ]);
-      setData({ list, summary, bySprint, byRepo, byAuthor });
-      setOptions(filterOptions);
-    } catch (err) {
-      setError(err);
-    } finally {
+    const qs = queryString ? `?${queryString}` : '';
+    // /pull-requests/filters is load-bearing: without it there are no filter
+    // options and no repo list, so its failure keeps the existing full-page
+    // error behavior. The other five degrade to a safe empty default per
+    // section so the page still renders with whatever succeeded.
+    const sections = [
+      { key: 'list', label: 'Pull requests', url: `/pull-requests${qs}`, fallback: { rows: [], total: 0 } },
+      {
+        key: 'summary',
+        label: 'Summary',
+        url: `/pull-requests/summary${qs}`,
+        fallback: {
+          total: 0,
+          merged: 0,
+          open: 0,
+          closed: 0,
+          stale: 0,
+          isSingle: false,
+          storiesWithoutMergedPr: [],
+        },
+      },
+      { key: 'bySprint', label: 'Sprint comparison', url: `/pull-requests/by-sprint${qs}`, fallback: [] },
+      { key: 'byRepo', label: 'Repositories', url: `/pull-requests/by-repo${qs}`, fallback: [] },
+      { key: 'byAuthor', label: 'Contributors', url: `/pull-requests/by-author${qs}`, fallback: [] },
+    ];
+
+    const results = await Promise.allSettled([
+      ...sections.map((section) => api.get(section.url)),
+      api.get('/pull-requests/filters'),
+    ]);
+
+    // A newer load() has since been kicked off — this response is stale.
+    // Ignore it entirely (including the loading flag) so it can't clobber
+    // state for filters that are no longer current.
+    if (requestIdRef.current !== requestId) return;
+
+    const filtersResult = results[results.length - 1];
+    if (filtersResult.status === 'rejected') {
+      setError(filtersResult.reason);
       setLoading(false);
+      return;
     }
+
+    const newData = {};
+    const failed = [];
+    sections.forEach((section, i) => {
+      const result = results[i];
+      if (result.status === 'fulfilled') {
+        newData[section.key] = result.value;
+      } else {
+        newData[section.key] = section.fallback;
+        failed.push(section.label);
+      }
+    });
+
+    setData(newData);
+    setOptions(filtersResult.value);
+    setFailedSections(failed);
+    setLoading(false);
   }, [queryString]);
 
   useEffect(() => {
@@ -44,8 +94,9 @@ export default function PullRequestsPage() {
     try {
       await api.post('/settings/github/sync');
       await load();
-    } catch {
+    } catch (err) {
       // A failed sync leaves cached data on screen; the repo table shows why.
+      console.error('GitHub sync failed:', err);
     } finally {
       setSyncing(false);
     }
@@ -98,6 +149,13 @@ export default function PullRequestsPage() {
         <h1 className="text-2xl font-semibold">Pull Requests</h1>
         {loading && <span className="text-sm text-gray-400">Refreshing…</span>}
       </div>
+
+      {failedSections.length > 0 && (
+        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+          Couldn't load: {failedSections.join(', ')}. Showing zeros/empty for{' '}
+          {failedSections.length === 1 ? 'that section' : 'those sections'} — try refreshing.
+        </p>
+      )}
 
       {/* Task 10 renders PrFilterBar here */}
       {/* Task 11 renders PrReadinessPanel / PrSprintComparison here */}
