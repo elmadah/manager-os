@@ -88,3 +88,51 @@ test('an unknown scope falls back to all', () => {
   const { scope } = buildPrFilter({ scope: 'nonsense' });
   assert.equal(scope.mode, 'all');
 });
+
+function assertOnlyPrimitives(params) {
+  for (const p of params) {
+    assert.ok(
+      p === null || ['string', 'number', 'boolean'].includes(typeof p),
+      `expected primitive param, got ${JSON.stringify(p)}`
+    );
+  }
+}
+
+test('repeated from param (array) applies no range clause and binds no params', () => {
+  const { where, params, clauses } = buildPrFilter({
+    scope: 'range', from: ['2026-07-01', '2026-07-31'], to: '2026-08-01',
+  });
+  assert.equal(where, 'WHERE 1=1');
+  assert.deepEqual(clauses, []);
+  assert.deepEqual(params, []);
+  assertOnlyPrimitives(params);
+});
+
+test('repeated release param (array) applies no release clause', () => {
+  const { where, params, clauses } = buildPrFilter({
+    scope: 'release', release: ['a', 'b'],
+  });
+  assert.equal(where, 'WHERE 1=1');
+  assert.deepEqual(clauses, []);
+  assert.deepEqual(params, []);
+  assertOnlyPrimitives(params);
+});
+
+test('non-string entries in sprint array are dropped, valid strings survive', () => {
+  const { where, params } = buildPrFilter({
+    scope: 'sprint', sprint: ['Sprint 24', { evil: 1 }],
+  });
+  assert.match(where, /pr\.sprint IN \(\?\)/);
+  assert.deepEqual(params, ['Sprint 24']);
+  assertOnlyPrimitives(params);
+});
+
+test('a plain object arriving where a scalar is expected applies no clause', () => {
+  const { where, params, clauses } = buildPrFilter({
+    scope: 'range', from: { $ne: null }, to: '2026-08-01',
+  });
+  assert.equal(where, 'WHERE 1=1');
+  assert.deepEqual(clauses, []);
+  assert.deepEqual(params, []);
+  assertOnlyPrimitives(params);
+});

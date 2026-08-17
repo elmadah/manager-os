@@ -15,6 +15,19 @@ function toIntArray(value) {
 }
 
 /**
+ * Coerce a query param expected to be a scalar into a non-empty string, or
+ * null. Express/qs turns a repeated query param into an array, and arrays
+ * (and other objects) are truthy in JS, so without this a repeated `?from=`
+ * would sail past a truthy check and get bound to SQL as a non-scalar,
+ * which sql.js silently accepts as a BLOB instead of rejecting outright.
+ * Anything that isn't a non-empty string — arrays, objects, null,
+ * undefined, '' — becomes null so the filter is simply skipped.
+ */
+function toScalarString(value) {
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+/**
  * Turn dashboard query params into a SQL WHERE fragment and bound params.
  * Queries must alias pull_requests as `pr` and github_repos as `r`.
  * Every value is bound, never interpolated.
@@ -24,10 +37,10 @@ function buildPrFilter(query = {}) {
   const params = [];
 
   const mode = VALID_MODES.includes(query.scope) ? query.scope : 'all';
-  const sprints = toArray(query.sprint);
-  const release = query.release || null;
-  const from = query.from || null;
-  const to = query.to || null;
+  const sprints = toArray(query.sprint).filter((v) => typeof v === 'string');
+  const release = toScalarString(query.release);
+  const from = toScalarString(query.from);
+  const to = toScalarString(query.to);
 
   if (mode === 'sprint' && sprints.length) {
     clauses.push(`pr.sprint IN (${sprints.map(() => '?').join(', ')})`);
@@ -76,6 +89,12 @@ function buildPrFilter(query = {}) {
   const isSingle =
     (mode === 'sprint' && sprints.length === 1) || (mode === 'release' && !!release);
 
+  // Note: scope.mode reflects the requested scope, not whether a clause was
+  // actually emitted. It can be 'range' with a missing/invalid `from`/`to`
+  // (or 'release' with a missing/invalid `release`) and still add no clause
+  // to `where`/`clauses` — isSingle stays false in that case, but a
+  // consumer must not infer "a range/release filter is applied" from mode
+  // alone; check `clauses`/`where` for that.
   return {
     where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : 'WHERE 1=1',
     clauses,
