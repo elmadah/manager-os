@@ -11,6 +11,7 @@ export default function PrRepoTable({ rows, onSelectRepo, activeRepoId }) {
             <th className="text-left py-1 px-2">Repo</th>
             <th className="text-left py-1 px-2">Open</th>
             <th className="text-left py-1 px-2">Merged</th>
+            <th className="text-left py-1 px-2">Closed</th>
             <th className="text-left py-1 px-2">Stale</th>
             <th className="text-left py-1 px-2">Oldest open</th>
             <th className="text-left py-1 px-2">Median merge</th>
@@ -71,6 +72,7 @@ export default function PrRepoTable({ rows, onSelectRepo, activeRepoId }) {
                     data shows its true counts (see errorStale styling on Sync). */}
                 <td className="py-1.5 px-2">{errorNoData ? '—' : row.open}</td>
                 <td className="py-1.5 px-2">{errorNoData ? '—' : row.merged}</td>
+                <td className="py-1.5 px-2">{errorNoData ? '—' : row.closed}</td>
                 <td className={`py-1.5 px-2 ${!errorNoData && row.stale ? 'text-amber-700 font-semibold' : ''}`}>
                   {errorNoData ? '—' : row.stale}
                 </td>

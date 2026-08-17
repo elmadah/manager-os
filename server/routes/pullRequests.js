@@ -45,7 +45,10 @@ router.get('/', (req, res) => {
     ? SORTABLE[req.query.sort]
     : 'pr.pr_created_at';
   const dir = req.query.dir === 'asc' ? 'ASC' : 'DESC';
-  const limit = Math.min(Number(req.query.limit) || 200, 1000);
+  // Clamp both bounds: a negative or zero limit (e.g. ?limit=-1) must not
+  // sail through to SQL as `LIMIT -1`, which SQLite treats as "no limit".
+  const rawLimit = Number(req.query.limit);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 1000) : 200;
   const offset = Number(req.query.offset) || 0;
 
   const rows = db
@@ -59,7 +62,7 @@ router.get('/', (req, res) => {
        FROM pull_requests pr
        JOIN github_repos r ON r.id = pr.repo_id
        LEFT JOIN team_members tm ON tm.id = pr.author_member_id
-       ${where}
+       ${where} AND r.is_active = 1
        ORDER BY ${sortCol} ${dir}
        LIMIT ? OFFSET ?`
     )
@@ -68,7 +71,7 @@ router.get('/', (req, res) => {
   const total = db
     .prepare(
       `SELECT COUNT(*) AS n FROM pull_requests pr
-       JOIN github_repos r ON r.id = pr.repo_id ${where}`
+       JOIN github_repos r ON r.id = pr.repo_id ${where} AND r.is_active = 1`
     )
     .get(...params).n;
 
@@ -89,7 +92,7 @@ router.get('/summary', (req, res) => {
          SUM(CASE WHEN pr.state = 'closed' THEN 1 ELSE 0 END) AS closed,
          SUM(CASE WHEN ${STALE_SQL} THEN 1 ELSE 0 END) AS stale
        FROM pull_requests pr
-       JOIN github_repos r ON r.id = pr.repo_id ${where}`
+       JOIN github_repos r ON r.id = pr.repo_id ${where} AND r.is_active = 1`
     )
     .get(...params);
 
@@ -157,7 +160,7 @@ router.get('/by-sprint', (req, res) => {
               ${STALE_SQL} AS is_stale
        FROM pull_requests pr
        JOIN github_repos r ON r.id = pr.repo_id
-       ${where} AND pr.sprint IS NOT NULL`
+       ${where} AND r.is_active = 1 AND pr.sprint IS NOT NULL`
     )
     .all(...params);
 
@@ -267,7 +270,7 @@ router.get('/by-repo', (req, res) => {
         project_name: row.project_name,
         last_sync_error: row.last_sync_error,
         total_prs: totalsByRepo.get(row.id) || 0,
-        open: 0, merged: 0, stale: 0, days: [], openAges: [],
+        open: 0, merged: 0, closed: 0, stale: 0, days: [], openAges: [],
       });
     }
     const entry = byRepo.get(row.id);
@@ -284,6 +287,7 @@ router.get('/by-repo', (req, res) => {
         entry.openAges.push((Date.now() - new Date(row.pr_created_at)) / 86400000);
       }
     }
+    if (row.state === 'closed') entry.closed += 1;
     if (row.is_stale) entry.stale += 1;
   });
 
@@ -313,7 +317,7 @@ router.get('/by-author', (req, res) => {
        FROM pull_requests pr
        JOIN github_repos r ON r.id = pr.repo_id
        LEFT JOIN team_members tm ON tm.id = pr.author_member_id
-       ${where}`
+       ${where} AND r.is_active = 1`
     )
     .all(...params);
 
@@ -330,7 +334,7 @@ router.get('/by-author', (req, res) => {
        FROM pr_reviews rv
        JOIN pull_requests pr ON pr.id = rv.pull_request_id
        JOIN github_repos r ON r.id = pr.repo_id
-       ${where}
+       ${where} AND r.is_active = 1
        GROUP BY rv.reviewer_member_id, rv.reviewer_login`
     )
     .all(...params);
@@ -388,8 +392,23 @@ router.get('/filters', (req, res) => {
          JOIN pull_requests pr ON pr.author_member_id = tm.id ORDER BY tm.name`
       )
       .all(),
+    // A person can review PRs without ever authoring one (an engineering
+    // manager, a QA lead) — the reviewer filter must not be limited to
+    // people who show up in `authors`, so it gets its own list built from
+    // pr_reviews.reviewer_member_id.
+    reviewers: db
+      .prepare(
+        `SELECT DISTINCT tm.id, tm.name FROM team_members tm
+         JOIN pr_reviews rv ON rv.reviewer_member_id = tm.id ORDER BY tm.name`
+      )
+      .all(),
     projects: db.prepare('SELECT id, name FROM projects ORDER BY name').all(),
     lastSyncAt: settings ? settings.last_sync_at : null,
+    // Distinguishes "GitHub isn't configured at all" (no github_settings
+    // row) from "configured but never synced" (row exists, last_sync_at is
+    // null) — the client needs this to avoid firing a background sync that
+    // is guaranteed to 400 when GitHub was never set up.
+    githubConfigured: !!settings,
   });
 });
 

@@ -248,7 +248,7 @@ export default function PrFilterBar({
           label="Reviewer"
           value={filters.reviewer}
           onChange={(v) => onSetFilter('reviewer', v)}
-          options={options.authors.map((a) => ({ value: String(a.id), label: a.name }))}
+          options={options.reviewers.map((a) => ({ value: String(a.id), label: a.name }))}
           placeholder="Any reviewer"
         />
 

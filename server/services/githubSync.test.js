@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { mapNode, isFresh, inClauseParams } = require('./githubSync');
+const fs = require('node:fs');
+const path = require('node:path');
+const { mapNode, isFresh, inClauseParams, repoCutoff } = require('./githubSync');
 
 // --- Finding 1: timestamp-format contract -----------------------------
 
@@ -37,6 +39,60 @@ test('isFresh: correct ISO-8601 cutoff format fixes the same-day regression case
   const fixedCutoff = '2026-08-17T09:00:00Z';
   const updatedAtBeforeCutoff = '2026-08-17T08:00:00Z';
   assert.equal(isFresh(updatedAtBeforeCutoff, fixedCutoff), false);
+});
+
+// --- C1: per-repo sync cutoff -------------------------------------------
+
+test('repoCutoff: a repo that has never synced falls back to the days-back window, not the global cutoff', () => {
+  const settings = { last_sync_at: '2026-08-17T09:00:00Z', sync_days_back: 30 };
+  const neverSyncedRepo = { last_sync_at: null };
+  const expectedFallback = repoCutoff(neverSyncedRepo, settings);
+  // Must NOT be the global settings.last_sync_at (that was the bug: a
+  // newly added repo inherited the global cutoff and synced nothing).
+  assert.notEqual(expectedFallback, settings.last_sync_at);
+  // Must be derived from sync_days_back, i.e. roughly 30 days ago.
+  const ageMs = Date.now() - new Date(expectedFallback).getTime();
+  const thirtyDaysMs = 30 * 86400000;
+  assert.ok(
+    Math.abs(ageMs - thirtyDaysMs) < 5000,
+    'fallback cutoff should be ~sync_days_back days ago'
+  );
+});
+
+test('repoCutoff: a repo with its own last_sync_at uses that, not the global settings.last_sync_at', () => {
+  const settings = { last_sync_at: '2026-08-17T09:00:00Z', sync_days_back: 180 };
+  const repo = { last_sync_at: '2026-01-01T00:00:00Z' };
+  assert.equal(repoCutoff(repo, settings), '2026-01-01T00:00:00Z');
+  assert.notEqual(repoCutoff(repo, settings), settings.last_sync_at);
+});
+
+test('repoCutoff: defaults to 180 days back when sync_days_back is not set', () => {
+  const settings = { last_sync_at: null, sync_days_back: null };
+  const neverSyncedRepo = { last_sync_at: null };
+  const cutoff = repoCutoff(neverSyncedRepo, settings);
+  const ageMs = Date.now() - new Date(cutoff).getTime();
+  const oneEightyDaysMs = 180 * 86400000;
+  assert.ok(Math.abs(ageMs - oneEightyDaysMs) < 5000);
+});
+
+// --- C1-adjacent: pin the strftime timestamp format in the UPDATE SQL ---
+
+test('syncAll SQL: github_repos.last_sync_at is written with the ISO-8601 Z-suffixed strftime format, not datetime(\'now\')', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'githubSync.js'), 'utf8');
+  assert.match(
+    src,
+    /UPDATE github_repos SET last_sync_at = strftime\('%Y-%m-%dT%H:%M:%SZ','now'\), last_sync_error = NULL WHERE id = \?/,
+    "github_repos.last_sync_at must use strftime('%Y-%m-%dT%H:%M:%SZ','now') — reverting to datetime('now') silently reintroduces the same-day over-sync bug"
+  );
+});
+
+test('syncAll SQL: github_settings.last_sync_at is written with the ISO-8601 Z-suffixed strftime format, not datetime(\'now\')', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'githubSync.js'), 'utf8');
+  assert.match(
+    src,
+    /UPDATE github_settings SET last_sync_at = strftime\('%Y-%m-%dT%H:%M:%SZ','now'\), updated_at = datetime\('now'\) WHERE id = 'default'/,
+    "github_settings.last_sync_at must use strftime('%Y-%m-%dT%H:%M:%SZ','now')"
+  );
 });
 
 // --- Finding 3: N+1 story lookup / storyMap plumbing -------------------

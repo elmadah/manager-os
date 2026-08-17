@@ -14,6 +14,19 @@ function isoDaysAgo(days) {
   return new Date(Date.now() - days * 86400000).toISOString();
 }
 
+/**
+ * Per-repo sync cutoff. Each repo must resume from its OWN last_sync_at,
+ * never the global github_settings.last_sync_at — otherwise a newly added
+ * repo (whose last_sync_at is null) inherits a cutoff from long after it
+ * was added and syncs nothing, and a repo that failed while its siblings
+ * succeeded has its cutoff silently advanced past the outage window it
+ * never actually synced. Falls back to the configured days-back window
+ * when the repo has never synced.
+ */
+function repoCutoff(repo, settings) {
+  return repo.last_sync_at || isoDaysAgo(settings.sync_days_back || 180);
+}
+
 /** Build login -> team_member_id, lowercased so matching is case-insensitive. */
 function loadMemberMap() {
   const rows = db
@@ -235,7 +248,6 @@ async function syncAll() {
   }
 
   const repos = db.prepare('SELECT * FROM github_repos WHERE is_active = 1').all();
-  const cutoff = settings.last_sync_at || isoDaysAgo(settings.sync_days_back || 180);
   const plans = loadPlans();
   const memberMap = loadMemberMap();
   const knownPrefixes = loadKnownPrefixes();
@@ -247,6 +259,7 @@ async function syncAll() {
   for (const repo of repos) {
     const slug = `${repo.owner}/${repo.name}`;
     try {
+      const cutoff = repoCutoff(repo, settings);
       const prs = await syncRepo(settings, repo, cutoff, plans, memberMap, knownPrefixes);
       db.prepare(
         "UPDATE github_repos SET last_sync_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'), last_sync_error = NULL WHERE id = ?"
@@ -288,4 +301,4 @@ async function syncAll() {
   };
 }
 
-module.exports = { syncAll, mapNode, isFresh, inClauseParams, loadStoriesByKeys };
+module.exports = { syncAll, mapNode, isFresh, inClauseParams, loadStoriesByKeys, repoCutoff };

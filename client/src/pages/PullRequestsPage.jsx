@@ -141,6 +141,12 @@ export default function PullRequestsPage() {
   useEffect(() => {
     if (!options || autoSyncedRef.current) return;
     autoSyncedRef.current = true;
+    // GitHub may not be configured at all (no github_settings row) even
+    // though repos are tracked from a prior configuration. In that case
+    // lastSyncAt is null just like a genuinely-stale sync, so without this
+    // check the background sync would fire on every mount, syncAll would
+    // throw a 400, and it'd be swallowed into console.error forever.
+    if (!options.githubConfigured) return;
     // github_settings.last_sync_at is written as strftime('%Y-%m-%dT%H:%M:%SZ','now'),
     // i.e. already a valid ISO-8601 UTC string ending in 'Z' — parse it directly.
     // If it's missing or unparseable, treat it as maximally stale (0) rather than
