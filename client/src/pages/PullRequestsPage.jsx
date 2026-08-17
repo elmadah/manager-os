@@ -6,6 +6,8 @@ import PrReadinessPanel from '../components/pr/PrReadinessPanel';
 import PrSprintComparison from '../components/pr/PrSprintComparison';
 import PrRepoTable from '../components/pr/PrRepoTable';
 import PrContributorTable from '../components/pr/PrContributorTable';
+import PrTrendChart from '../components/pr/PrTrendChart';
+import PrTable from '../components/pr/PrTable';
 
 const STALE_SYNC_MS = 30 * 60 * 1000;
 
@@ -17,6 +19,8 @@ export default function PullRequestsPage() {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
   const [failedSections, setFailedSections] = useState([]);
+  const [sortKey, setSortKey] = useState('created');
+  const [sortDir, setSortDir] = useState('desc');
   const autoSyncedRef = useRef(false);
   // Monotonically increasing request id. Each load() captures the id it was
   // issued at; when a response lands, we only apply it (and only clear the
@@ -29,7 +33,10 @@ export default function PullRequestsPage() {
     const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
-    const qs = queryString ? `?${queryString}` : '';
+    const params = new URLSearchParams(queryString);
+    params.set('sort', sortKey);
+    params.set('dir', sortDir);
+    const qs = `?${params.toString()}`;
     // /pull-requests/filters is load-bearing: without it there are no filter
     // options and no repo list, so its failure keeps the existing full-page
     // error behavior. The other five degrade to a safe empty default per
@@ -88,7 +95,7 @@ export default function PullRequestsPage() {
     setOptions(filtersResult.value);
     setFailedSections(failed);
     setLoading(false);
-  }, [queryString]);
+  }, [queryString, sortKey, sortDir]);
 
   useEffect(() => {
     load();
@@ -192,11 +199,25 @@ export default function PullRequestsPage() {
           <PrContributorTable rows={data.byAuthor} />
         </>
       )}
-      {/* Task 13 renders PrTrendChart and PrTable here */}
-
-      <pre className="text-xs bg-gray-50 p-3 rounded border overflow-auto">
-        {JSON.stringify({ filters, syncing, counts: data && data.summary }, null, 2)}
-      </pre>
+      {data && (
+        <>
+          <PrTrendChart rows={data.bySprint} />
+          <PrTable
+            rows={data.list.rows}
+            total={data.list.total}
+            sort={sortKey}
+            dir={sortDir}
+            onSort={(key) => {
+              if (key === sortKey) {
+                setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+              } else {
+                setSortKey(key);
+                setSortDir('desc');
+              }
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }
