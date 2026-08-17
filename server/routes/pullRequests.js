@@ -47,9 +47,16 @@ router.get('/', (req, res) => {
   const dir = req.query.dir === 'asc' ? 'ASC' : 'DESC';
   // Clamp both bounds: a negative or zero limit (e.g. ?limit=-1) must not
   // sail through to SQL as `LIMIT -1`, which SQLite treats as "no limit".
+  // Both must also be coerced to integers: sql.js's LIMIT/OFFSET require
+  // integers and raise "datatype mismatch" (surfaced as a 500 with a stack
+  // trace) for a fractional value like `?limit=2.5`, so truncate before
+  // clamping rather than after.
   const rawLimit = Number(req.query.limit);
-  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 1000) : 200;
-  const offset = Number(req.query.offset) || 0;
+  const limit = Number.isFinite(rawLimit)
+    ? Math.min(Math.max(Math.trunc(rawLimit), 1), 1000)
+    : 200;
+  const rawOffset = Number(req.query.offset);
+  const offset = Number.isFinite(rawOffset) ? Math.max(Math.trunc(rawOffset), 0) : 0;
 
   const rows = db
     .prepare(
@@ -97,6 +104,10 @@ router.get('/summary', (req, res) => {
     .get(...params);
 
   // Stories in scope with no merged PR — including stories with no PRs at all.
+  // Deliberately does NOT filter on r.is_active, unlike `counts` above.
+  // is_active means "stop syncing this repo," not "this work never
+  // happened": archiving a repo should not resurrect its long-delivered
+  // stories as delivery risks by making their merged PRs invisible here.
   let storiesWithoutMergedPr = [];
   if (scope.isSingle) {
     if (scope.mode === 'sprint') {
@@ -375,8 +386,17 @@ router.get('/by-author', (req, res) => {
 router.get('/filters', (req, res) => {
   const settings = db.prepare("SELECT last_sync_at FROM github_settings WHERE id = 'default'").get();
   res.json({
+    // Every list below is scoped to active repos (r.is_active = 1), matching
+    // every data endpoint and the `repos` list itself — otherwise
+    // deactivating a repo leaves its sprints/authors/reviewers selectable in
+    // the filter bar, and picking one resolves to an empty dashboard.
     sprints: db
-      .prepare("SELECT DISTINCT sprint FROM pull_requests WHERE sprint IS NOT NULL ORDER BY sprint DESC")
+      .prepare(
+        `SELECT DISTINCT pr.sprint FROM pull_requests pr
+         JOIN github_repos r ON r.id = pr.repo_id
+         WHERE pr.sprint IS NOT NULL AND r.is_active = 1
+         ORDER BY pr.sprint DESC`
+      )
       .all()
       .map((r) => r.sprint),
     releases: db
@@ -389,7 +409,10 @@ router.get('/filters', (req, res) => {
     authors: db
       .prepare(
         `SELECT DISTINCT tm.id, tm.name FROM team_members tm
-         JOIN pull_requests pr ON pr.author_member_id = tm.id ORDER BY tm.name`
+         JOIN pull_requests pr ON pr.author_member_id = tm.id
+         JOIN github_repos r ON r.id = pr.repo_id
+         WHERE r.is_active = 1
+         ORDER BY tm.name`
       )
       .all(),
     // A person can review PRs without ever authoring one (an engineering
@@ -399,7 +422,11 @@ router.get('/filters', (req, res) => {
     reviewers: db
       .prepare(
         `SELECT DISTINCT tm.id, tm.name FROM team_members tm
-         JOIN pr_reviews rv ON rv.reviewer_member_id = tm.id ORDER BY tm.name`
+         JOIN pr_reviews rv ON rv.reviewer_member_id = tm.id
+         JOIN pull_requests pr ON pr.id = rv.pull_request_id
+         JOIN github_repos r ON r.id = pr.repo_id
+         WHERE r.is_active = 1
+         ORDER BY tm.name`
       )
       .all(),
     projects: db.prepare('SELECT id, name FROM projects ORDER BY name').all(),

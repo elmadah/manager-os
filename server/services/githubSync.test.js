@@ -95,6 +95,30 @@ test('syncAll SQL: github_settings.last_sync_at is written with the ISO-8601 Z-s
   );
 });
 
+test('syncAll SQL: repoCutoff is called per-repo inside the loop, not hoisted above it', () => {
+  // Pins the call SITE of repoCutoff, not just its return-value semantics
+  // (already covered by the repoCutoff tests above). Hoisting
+  // `const cutoff = repoCutoff(repo, settings)` out above `for (const repo
+  // of repos)` would reintroduce the Critical bug in full — one global
+  // cutoff shared by every repo — while every existing test, including the
+  // repoCutoff unit tests, would still pass.
+  const src = fs.readFileSync(path.join(__dirname, 'githubSync.js'), 'utf8');
+  const funcMatch = src.match(/async function syncAll\(\)\s*{[\s\S]*?\n}\n/);
+  assert.ok(funcMatch, 'syncAll function body not found in githubSync.js');
+  const body = funcMatch[0];
+
+  const loopIdx = body.indexOf('for (const repo of repos)');
+  const cutoffIdx = body.indexOf('repoCutoff(repo, settings)');
+  assert.ok(loopIdx !== -1, 'per-repo loop `for (const repo of repos)` not found');
+  assert.ok(cutoffIdx !== -1, 'repoCutoff(repo, settings) call not found');
+  assert.ok(
+    cutoffIdx > loopIdx,
+    'repoCutoff(repo, settings) must be called inside the per-repo loop body, ' +
+      'not hoisted above `for (const repo of repos)` — hoisting it computes one ' +
+      'shared cutoff for every repo again'
+  );
+});
+
 // --- Finding 3: N+1 story lookup / storyMap plumbing -------------------
 
 test('inClauseParams: dedupes keys and never interpolates values into the SQL text', () => {
