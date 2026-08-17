@@ -150,7 +150,7 @@ router.get('/by-sprint', (req, res) => {
   const bySprint = new Map();
   rows.forEach((row) => {
     if (!bySprint.has(row.sprint)) {
-      bySprint.set(row.sprint, { sprint: row.sprint, merged: 0, open: 0, stale: 0, days: [] });
+      bySprint.set(row.sprint, { sprint: row.sprint, merged: 0, open: 0, closed: 0, stale: 0, days: [] });
     }
     const entry = bySprint.get(row.sprint);
     if (row.state === 'merged') {
@@ -162,6 +162,7 @@ router.get('/by-sprint', (req, res) => {
       }
     }
     if (row.state === 'open') entry.open += 1;
+    if (row.state === 'closed') entry.closed += 1;
     if (row.is_stale) entry.stale += 1;
   });
 
