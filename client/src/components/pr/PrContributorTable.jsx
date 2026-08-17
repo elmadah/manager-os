@@ -18,8 +18,15 @@ export default function PrContributorTable({ rows }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.member_id || row.name} className="border-b border-gray-100">
+            {rows.map((row, index) => (
+              // Keyed by member_id when mapped; otherwise by row position.
+              // The server already dedupes truly distinct people by login,
+              // but two different unmapped contributors can both surface
+              // with no login and the same fallback display name ('unknown'),
+              // so `row.name` alone is not unique. `index` is stable here
+              // because rows is a fresh, non-reordered array from the server
+              // on every render — it isn't reconciling against a mutating list.
+              <tr key={row.member_id ? `m${row.member_id}` : `row-${index}`} className="border-b border-gray-100">
                 <td className="py-1.5 px-2">
                   {row.name}
                   {/* Unmapped GitHub logins stay visible rather than being dropped. */}

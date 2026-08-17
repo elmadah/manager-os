@@ -219,6 +219,25 @@ router.get('/by-repo', (req, res) => {
     // to the wrong placeholders.
     .all(...prParams, ...repoParams);
 
+  // Unfiltered per-repo PR counts, entirely independent of buildPrFilter's
+  // clauses (no scope/author/state/sprint/release/date-range/project/
+  // reviewer filtering, and no repo filter either — this is "does this repo
+  // have any PRs at all"). This cannot be produced by the query above: that
+  // query's filter conditions live in the LEFT JOIN's ON clause specifically
+  // so a repo with zero *matching* PRs still returns a driving row, and
+  // folding an unfiltered count into the same joined rows would require
+  // either a second, differently-filtered join (not expressible via a
+  // single ON clause) or counting post-hoc in JS from already-filtered rows
+  // (which would just reproduce the bug). A standalone query keyed by
+  // repo_id sidesteps all of that, and — because it takes no parameters —
+  // there is no binding-order interaction with prParams/repoParams above.
+  const totalsByRepo = new Map(
+    db
+      .prepare('SELECT repo_id, COUNT(*) AS n FROM pull_requests GROUP BY repo_id')
+      .all()
+      .map((r) => [r.repo_id, r.n])
+  );
+
   const byRepo = new Map();
   rows.forEach((row) => {
     if (!byRepo.has(row.id)) {
@@ -227,6 +246,7 @@ router.get('/by-repo', (req, res) => {
         slug: row.slug,
         project_name: row.project_name,
         last_sync_error: row.last_sync_error,
+        total_prs: totalsByRepo.get(row.id) || 0,
         open: 0, merged: 0, stale: 0, days: [], openAges: [],
       });
     }

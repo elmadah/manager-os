@@ -20,16 +20,14 @@ export default function PrRepoTable({ rows, onSelectRepo, activeRepoId }) {
         <tbody>
           {rows.map((row) => {
             const failed = !!row.last_sync_error;
-            // A repo can have a stale last_sync_error while still holding real,
-            // previously-synced PR data. Only treat it as "no data" — and blank
-            // out the counts with dashes — when every count is genuinely empty.
-            // Otherwise the real counts must stay visible, just flagged as stale.
-            const hasNoData =
-              row.open === 0 &&
-              row.merged === 0 &&
-              row.stale === 0 &&
-              row.median_merge_days === null &&
-              row.oldest_open_days === null;
+            // Whether the repo has no data must be judged from the unfiltered
+            // total (row.total_prs, independent of every dashboard filter),
+            // never from the filtered counts. A repo with plenty of PRs and a
+            // stale sync error, viewed under a filter that happens to exclude
+            // all of that repo's PRs, must still render its true (zero)
+            // filtered counts as amber "Stale" — not red "Failed" with dashes,
+            // which would falsely claim the data itself is missing.
+            const hasNoData = !row.total_prs;
             const errorNoData = failed && hasNoData;
             const errorStale = failed && !hasNoData;
             const isActive = activeRepoId === String(row.id);
@@ -55,12 +53,12 @@ export default function PrRepoTable({ rows, onSelectRepo, activeRepoId }) {
                 className={`border-b border-gray-100 cursor-pointer focus:outline focus:outline-2 focus:outline-blue-400 focus:-outline-offset-2 ${
                   errorNoData
                     ? 'bg-red-50'
-                    : isActive
-                      ? 'bg-blue-50'
-                      : errorStale
-                        ? 'bg-amber-50'
+                    : errorStale
+                      ? 'bg-amber-50'
+                      : isActive
+                        ? 'bg-blue-50'
                         : 'hover:bg-gray-50'
-                }`}
+                } ${isActive ? 'ring-1 ring-inset ring-blue-400' : ''}`}
               >
                 <td className="py-1.5 px-2">
                   {isActive && <span className="text-blue-600 font-semibold mr-1">▸</span>}
