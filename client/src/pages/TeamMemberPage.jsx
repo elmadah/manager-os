@@ -493,6 +493,7 @@ function VelocityChart({ velocity }) {
             fill="#f97316"
             radius={[4, 4, 0, 0]}
             opacity={0.7}
+            isAnimationActive={false}
           />
         </ComposedChart>
       </ResponsiveContainer>

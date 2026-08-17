@@ -254,9 +254,9 @@ export default function SprintsPage() {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="Completed Points" fill="#22c55e" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Carry-Overs" fill="#f97316" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="New Stories" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Completed Points" fill="#22c55e" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="Carry-Overs" fill="#f97316" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="New Stories" fill="#3b82f6" radius={[4, 4, 0, 0]} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </div>
