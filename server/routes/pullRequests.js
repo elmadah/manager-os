@@ -10,7 +10,9 @@ const STALE_SQL = `
 
 /** Median of a numeric array. Returns null for an empty array. */
 function median(values) {
-  const nums = values.filter((v) => v !== null && v !== undefined).sort((a, b) => a - b);
+  const nums = values
+    .filter((v) => v !== null && v !== undefined && Number.isFinite(v))
+    .sort((a, b) => a - b);
   if (!nums.length) return null;
   const mid = Math.floor(nums.length / 2);
   return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
@@ -35,7 +37,13 @@ const SORTABLE = {
 
 router.get('/', (req, res) => {
   const { where, params } = buildPrFilter(req.query);
-  const sortCol = SORTABLE[req.query.sort] || 'pr.pr_created_at';
+  // SORTABLE is a plain object, so `SORTABLE[req.query.sort]` also resolves
+  // inherited properties (constructor, __proto__, hasOwnProperty, toString,
+  // valueOf), which are truthy and would defeat the `||` fallback below.
+  // Require sort to be a genuine own key of the allow-list.
+  const sortCol = Object.prototype.hasOwnProperty.call(SORTABLE, req.query.sort)
+    ? SORTABLE[req.query.sort]
+    : 'pr.pr_created_at';
   const dir = req.query.dir === 'asc' ? 'ASC' : 'DESC';
   const limit = Math.min(Number(req.query.limit) || 200, 1000);
   const offset = Number(req.query.offset) || 0;
@@ -167,15 +175,18 @@ router.get('/by-sprint', (req, res) => {
 // --- Per-repo breakdown ----------------------------------------------------
 
 router.get('/by-repo', (req, res) => {
-  const { clauses, params } = buildPrFilter(req.query);
+  const { prClauses, prParams, repoClauses, repoParams } = buildPrFilter(req.query);
 
   // /by-repo must LEFT JOIN from github_repos so a repo with zero matching
   // PRs still returns a row (that is how a failed-sync repo becomes visible
-  // in the UI at all). The filter conditions therefore belong in the JOIN's
-  // ON clause, not in a WHERE, which would silently turn the LEFT JOIN into
-  // an inner join. Compose the ON fragment directly from `clauses` rather
-  // than string-mangling the finished `where` fragment.
-  const joinFilter = clauses.length ? ` AND ${clauses.join(' AND ')}` : '';
+  // in the UI at all). A condition on `r.` (github_repos) placed in the
+  // LEFT JOIN's ON clause does not remove the driving row — it only stops
+  // pull_requests from joining — so a repo-level filter (e.g. project) must
+  // sit in the outer WHERE alongside `r.is_active = 1`, while pr-level
+  // filters (sprint, repo, author, state, reviewer) go in the ON clause so
+  // they narrow which PRs join without dropping repos that have none.
+  const joinFilter = prClauses.length ? ` AND ${prClauses.join(' AND ')}` : '';
+  const repoFilter = repoClauses.length ? ` AND ${repoClauses.join(' AND ')}` : '';
 
   const rows = db
     .prepare(
@@ -185,9 +196,16 @@ router.get('/by-repo', (req, res) => {
        FROM github_repos r
        LEFT JOIN projects p ON p.id = r.project_id
        LEFT JOIN pull_requests pr ON pr.repo_id = r.id${joinFilter}
-       WHERE r.is_active = 1`
+       WHERE r.is_active = 1${repoFilter}`
     )
-    .all(...params);
+    // Placeholders appear in this SQL text in the order: ON-clause
+    // (prParams) first, then WHERE-clause (repoParams) second. That is a
+    // different order than the combined `params` array from buildPrFilter
+    // (which reflects clause-construction order, e.g. scope/repo/author/
+    // state before project), so we bind prParams then repoParams here
+    // rather than reusing `params` — reusing it would silently bind values
+    // to the wrong placeholders.
+    .all(...prParams, ...repoParams);
 
   const byRepo = new Map();
   rows.forEach((row) => {
@@ -219,11 +237,14 @@ router.get('/by-repo', (req, res) => {
 
   res.json(
     [...byRepo.values()]
-      .map(({ days, openAges, ...rest }) => ({
-        ...rest,
-        median_merge_days: round1(median(days)),
-        oldest_open_days: openAges.length ? Math.round(Math.max(...openAges)) : null,
-      }))
+      .map(({ days, openAges, ...rest }) => {
+        const finiteAges = openAges.filter((v) => Number.isFinite(v));
+        return {
+          ...rest,
+          median_merge_days: round1(median(days)),
+          oldest_open_days: finiteAges.length ? Math.round(Math.max(...finiteAges)) : null,
+        };
+      })
       .sort((a, b) => a.slug.localeCompare(b.slug))
   );
 });
@@ -244,6 +265,12 @@ router.get('/by-author', (req, res) => {
     )
     .all(...params);
 
+  // Note: when a `reviewer` filter is present, buildPrFilter's `where`
+  // fragment contains an EXISTS subquery that also aliases pr_reviews as
+  // `rv` (see prFilters.js), shadowing this query's outer `pr_reviews rv`.
+  // This is intentional and safe: the subquery only correlates on the
+  // outer `pr.id`, never on the outer `rv`, so the shadowed alias is never
+  // actually referenced from inside the subquery.
   const reviews = db
     .prepare(
       `SELECT rv.reviewer_member_id AS member_id, rv.reviewer_login,

@@ -136,3 +136,58 @@ test('a plain object arriving where a scalar is expected applies no clause', () 
   assert.deepEqual(params, []);
   assertOnlyPrimitives(params);
 });
+
+// --- prClauses / repoClauses split -----------------------------------------
+
+test('a project filter lands in the repo-level group and not the PR-level group', () => {
+  const { repoClauses, prClauses, repoParams, prParams } = buildPrFilter({ project: '2' });
+  assert.equal(repoClauses.length, 1);
+  assert.match(repoClauses[0], /r\.project_id = \?/);
+  assert.deepEqual(repoParams, [2]);
+  assert.deepEqual(prClauses, []);
+  assert.deepEqual(prParams, []);
+});
+
+test('repo, author, state, scope and reviewer filters land in the PR-level group', () => {
+  const { prClauses, repoClauses, prParams, repoParams } = buildPrFilter({
+    scope: 'sprint', sprint: 'Sprint 24',
+    repo: ['3'], author: ['7'], state: 'open', reviewer: '5',
+  });
+  // scope, repo, author, state, reviewer = 5 pr-level clauses
+  assert.equal(prClauses.length, 5);
+  assert.match(prClauses.join(' '), /pr\.sprint IN/);
+  assert.match(prClauses.join(' '), /pr\.repo_id IN/);
+  assert.match(prClauses.join(' '), /pr\.author_member_id IN/);
+  assert.match(prClauses.join(' '), /pr\.state = \?/);
+  assert.match(prClauses.join(' '), /EXISTS \(SELECT 1 FROM pr_reviews/);
+  assert.deepEqual(prParams, ['Sprint 24', 3, 7, 'open', 5]);
+  assert.deepEqual(repoClauses, []);
+  assert.deepEqual(repoParams, []);
+});
+
+test('both groups are empty when nothing is filtered', () => {
+  const { prClauses, repoClauses, prParams, repoParams } = buildPrFilter({});
+  assert.deepEqual(prClauses, []);
+  assert.deepEqual(repoClauses, []);
+  assert.deepEqual(prParams, []);
+  assert.deepEqual(repoParams, []);
+});
+
+test('combined clauses and params are unchanged from today\'s behavior for a multi-filter case', () => {
+  const { where, params, clauses, prClauses, repoClauses } = buildPrFilter({
+    repo: ['3'], author: ['7'], state: 'open', project: '2',
+  });
+  assert.match(where, /pr\.repo_id IN \(\?\)/);
+  assert.match(where, /pr\.author_member_id IN \(\?\)/);
+  assert.match(where, /pr\.state = \?/);
+  assert.match(where, /r\.project_id = \?/);
+  assert.deepEqual(params, [3, 7, 'open', 2]);
+  assert.equal(clauses.length, 4);
+  assert.equal(where, `WHERE ${clauses.join(' AND ')}`);
+  // and the split groups partition clauses exactly, in the same relative order
+  assert.equal(prClauses.length + repoClauses.length, clauses.length);
+  assert.deepEqual(prClauses, [
+    'pr.repo_id IN (?)', 'pr.author_member_id IN (?)', 'pr.state = ?',
+  ]);
+  assert.deepEqual(repoClauses, ['r.project_id = ?']);
+});

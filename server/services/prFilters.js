@@ -35,6 +35,31 @@ function toScalarString(value) {
 function buildPrFilter(query = {}) {
   const clauses = [];
   const params = [];
+  // Same clauses/params, but split by which table's row they constrain.
+  // pull_requests-level clauses (aliased `pr`) are safe to filter with in a
+  // WHERE after an inner JOIN, or in a LEFT JOIN's ON clause. github_repos-
+  // level clauses (aliased `r`) must go in the outer WHERE of a query that
+  // LEFT JOINs from github_repos, or they'd silently fail to exclude rows
+  // (a condition on the "one" side of a LEFT JOIN placed in the ON clause
+  // only suppresses the join match, not the driving row).
+  const prClauses = [];
+  const prParams = [];
+  const repoClauses = [];
+  const repoParams = [];
+
+  function addPr(clause, ...values) {
+    clauses.push(clause);
+    params.push(...values);
+    prClauses.push(clause);
+    prParams.push(...values);
+  }
+
+  function addRepo(clause, ...values) {
+    clauses.push(clause);
+    params.push(...values);
+    repoClauses.push(clause);
+    repoParams.push(...values);
+  }
 
   const mode = VALID_MODES.includes(query.scope) ? query.scope : 'all';
   const sprints = toArray(query.sprint).filter((v) => typeof v === 'string');
@@ -43,47 +68,41 @@ function buildPrFilter(query = {}) {
   const to = toScalarString(query.to);
 
   if (mode === 'sprint' && sprints.length) {
-    clauses.push(`pr.sprint IN (${sprints.map(() => '?').join(', ')})`);
-    params.push(...sprints);
+    addPr(`pr.sprint IN (${sprints.map(() => '?').join(', ')})`, ...sprints);
   } else if (mode === 'release' && release) {
-    clauses.push(
-      'pr.story_id IN (SELECT id FROM stories WHERE release_date = ?)'
+    addPr(
+      'pr.story_id IN (SELECT id FROM stories WHERE release_date = ?)',
+      release
     );
-    params.push(release);
   } else if (mode === 'range' && from && to) {
-    clauses.push('COALESCE(pr.merged_at, pr.pr_created_at) BETWEEN ? AND ?');
-    params.push(from, to);
+    addPr('COALESCE(pr.merged_at, pr.pr_created_at) BETWEEN ? AND ?', from, to);
   }
 
   const repos = toIntArray(query.repo);
   if (repos.length) {
-    clauses.push(`pr.repo_id IN (${repos.map(() => '?').join(', ')})`);
-    params.push(...repos);
+    addPr(`pr.repo_id IN (${repos.map(() => '?').join(', ')})`, ...repos);
   }
 
   const authors = toIntArray(query.author);
   if (authors.length) {
-    clauses.push(`pr.author_member_id IN (${authors.map(() => '?').join(', ')})`);
-    params.push(...authors);
+    addPr(`pr.author_member_id IN (${authors.map(() => '?').join(', ')})`, ...authors);
   }
 
   if (VALID_STATES.includes(query.state)) {
-    clauses.push('pr.state = ?');
-    params.push(query.state);
+    addPr('pr.state = ?', query.state);
   }
 
   const projectId = Number(query.project);
   if (Number.isInteger(projectId)) {
-    clauses.push('r.project_id = ?');
-    params.push(projectId);
+    addRepo('r.project_id = ?', projectId);
   }
 
   const reviewerId = Number(query.reviewer);
   if (Number.isInteger(reviewerId)) {
-    clauses.push(
-      'EXISTS (SELECT 1 FROM pr_reviews rv WHERE rv.pull_request_id = pr.id AND rv.reviewer_member_id = ?)'
+    addPr(
+      'EXISTS (SELECT 1 FROM pr_reviews rv WHERE rv.pull_request_id = pr.id AND rv.reviewer_member_id = ?)',
+      reviewerId
     );
-    params.push(reviewerId);
   }
 
   const isSingle =
@@ -99,6 +118,10 @@ function buildPrFilter(query = {}) {
     where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : 'WHERE 1=1',
     clauses,
     params,
+    prClauses,
+    prParams,
+    repoClauses,
+    repoParams,
     scope: { mode, sprints, release, from, to, isSingle },
   };
 }
