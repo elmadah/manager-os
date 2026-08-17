@@ -24,7 +24,7 @@ export default function PrTrendChart({ rows, selectedSprint }) {
               <XAxis dataKey="sprint" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="merged" fill={DEFAULT_FILL} radius={[3, 3, 0, 0]} maxBarSize={MAX_BAR_SIZE}>
+              <Bar dataKey="merged" fill={DEFAULT_FILL} radius={[3, 3, 0, 0]} isAnimationActive={false} maxBarSize={MAX_BAR_SIZE}>
                 {selectedSprint &&
                   rows.map((row) => (
                     <Cell
