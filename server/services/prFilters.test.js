@@ -191,3 +191,83 @@ test('combined clauses and params are unchanged from today\'s behavior for a mul
   ]);
   assert.deepEqual(repoClauses, ['r.project_id = ?']);
 });
+
+// --- ignoreRepoFilter option ------------------------------------------------
+
+test('ignoreRepoFilter omits the repo clause and its param from every field', () => {
+  const { where, clauses, params, prClauses, prParams } = buildPrFilter(
+    { repo: ['3'], author: ['7'], state: 'open' },
+    { ignoreRepoFilter: true }
+  );
+  assert.doesNotMatch(where, /pr\.repo_id/);
+  assert.ok(!clauses.some((c) => /pr\.repo_id/.test(c)));
+  assert.ok(!prClauses.some((c) => /pr\.repo_id/.test(c)));
+  // repo id 3 must not appear anywhere in the bound params
+  assert.ok(!params.includes(3));
+  assert.ok(!prParams.includes(3));
+  // the other filters (author, state) are untouched
+  assert.match(where, /pr\.author_member_id IN \(\?\)/);
+  assert.match(where, /pr\.state = \?/);
+  assert.deepEqual(params, [7, 'open']);
+  assert.deepEqual(prParams, [7, 'open']);
+});
+
+test('ignoreRepoFilter with only a repo filter yields no clause/params at all', () => {
+  const { where, clauses, params, prClauses, prParams } = buildPrFilter(
+    { repo: ['3'] },
+    { ignoreRepoFilter: true }
+  );
+  assert.equal(where, 'WHERE 1=1');
+  assert.deepEqual(clauses, []);
+  assert.deepEqual(params, []);
+  assert.deepEqual(prClauses, []);
+  assert.deepEqual(prParams, []);
+});
+
+test('ignoreRepoFilter keeps prParams length and order aligned with prClauses', () => {
+  const { prClauses, prParams } = buildPrFilter(
+    {
+      scope: 'sprint', sprint: 'Sprint 24',
+      repo: ['3'], author: ['7'], state: 'open', reviewer: '5',
+    },
+    { ignoreRepoFilter: true }
+  );
+  // scope, author, state, reviewer = 4 pr-level clauses (repo excluded)
+  assert.equal(prClauses.length, 4);
+  assert.deepEqual(prParams, ['Sprint 24', 7, 'open', 5]);
+  // each clause's own '?' placeholder count matches the params consumed for it,
+  // in order, when walked left to right
+  let consumed = 0;
+  for (const clause of prClauses) {
+    const placeholderCount = (clause.match(/\?/g) || []).length;
+    consumed += placeholderCount;
+  }
+  assert.equal(consumed, prParams.length);
+});
+
+test('ignoreRepoFilter does not affect repo-level (project) filters', () => {
+  const { repoClauses, repoParams } = buildPrFilter(
+    { project: '2', repo: ['3'] },
+    { ignoreRepoFilter: true }
+  );
+  assert.equal(repoClauses.length, 1);
+  assert.match(repoClauses[0], /r\.project_id = \?/);
+  assert.deepEqual(repoParams, [2]);
+});
+
+test('default (no options argument) behavior is unchanged when repo filter present', () => {
+  const withOptions = buildPrFilter({ repo: ['3'], author: ['7'], state: 'open' });
+  const withoutOptions = buildPrFilter(
+    { repo: ['3'], author: ['7'], state: 'open' },
+    {}
+  );
+  assert.deepEqual(withOptions, withoutOptions);
+  assert.match(withOptions.where, /pr\.repo_id IN \(\?\)/);
+  assert.deepEqual(withOptions.params, [3, 7, 'open']);
+});
+
+test('default (options absent) is byte-identical to explicit ignoreRepoFilter: false', () => {
+  const a = buildPrFilter({ repo: ['3'], state: 'open' });
+  const b = buildPrFilter({ repo: ['3'], state: 'open' }, { ignoreRepoFilter: false });
+  assert.deepEqual(a, b);
+});

@@ -32,7 +32,8 @@ function toScalarString(value) {
  * Queries must alias pull_requests as `pr` and github_repos as `r`.
  * Every value is bound, never interpolated.
  */
-function buildPrFilter(query = {}) {
+function buildPrFilter(query = {}, options = {}) {
+  const { ignoreRepoFilter = false } = options;
   const clauses = [];
   const params = [];
   // Same clauses/params, but split by which table's row they constrain.
@@ -79,7 +80,7 @@ function buildPrFilter(query = {}) {
   }
 
   const repos = toIntArray(query.repo);
-  if (repos.length) {
+  if (repos.length && !ignoreRepoFilter) {
     addPr(`pr.repo_id IN (${repos.map(() => '?').join(', ')})`, ...repos);
   }
 

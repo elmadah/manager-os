@@ -175,7 +175,17 @@ router.get('/by-sprint', (req, res) => {
 // --- Per-repo breakdown ----------------------------------------------------
 
 router.get('/by-repo', (req, res) => {
-  const { prClauses, prParams, repoClauses, repoParams } = buildPrFilter(req.query);
+  // The Repositories table doubles as the repo selector: clicking a row
+  // filters the whole dashboard to that repo. If /by-repo applied its own
+  // `repo` filter to its own rows, every other repo would drop to 0/0 the
+  // moment one was selected, making the table useless for navigating to a
+  // different repo. A facet must not filter itself, so `repo` is excluded
+  // here via buildPrFilter's ignoreRepoFilter option — every other filter
+  // (scope, author, state, project, reviewer) still applies normally.
+  const { prClauses, prParams, repoClauses, repoParams } = buildPrFilter(
+    req.query,
+    { ignoreRepoFilter: true }
+  );
 
   // /by-repo must LEFT JOIN from github_repos so a repo with zero matching
   // PRs still returns a row (that is how a failed-sync repo becomes visible
@@ -183,8 +193,9 @@ router.get('/by-repo', (req, res) => {
   // LEFT JOIN's ON clause does not remove the driving row — it only stops
   // pull_requests from joining — so a repo-level filter (e.g. project) must
   // sit in the outer WHERE alongside `r.is_active = 1`, while pr-level
-  // filters (sprint, repo, author, state, reviewer) go in the ON clause so
-  // they narrow which PRs join without dropping repos that have none.
+  // filters (sprint, author, state, reviewer — repo excluded, see above) go
+  // in the ON clause so they narrow which PRs join without dropping repos
+  // that have none.
   const joinFilter = prClauses.length ? ` AND ${prClauses.join(' AND ')}` : '';
   const repoFilter = repoClauses.length ? ` AND ${repoClauses.join(' AND ')}` : '';
 
