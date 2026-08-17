@@ -363,6 +363,102 @@ async function seed() {
       created: daysAgo(6), merged: daysAgo(4), closed: null, review: daysAgo(5.5), add: 32, del: 8 },
   ];
 
+  // Additional merged PRs spanning older sprints (numeric-aware "Sprint N"
+  // names, all older than the existing "Sprint 24" rows above) so the
+  // "Merged per sprint" trend chart has real shape instead of one bar.
+  // Merged counts per sprint are deliberately uneven (2, 5, 8, 4, then the
+  // existing 3 in Sprint 24) to draw a rising-then-falling trend, spread
+  // across both repos and across mapped (ahmed/sara) and unmapped (omar)
+  // authors so per-repo/per-contributor breakdowns stay meaningful when a
+  // user filters to an older sprint.
+  const olderSprintPrs = [
+    // Sprint 20 — 2 merged
+    { repo: apiRepo.id, number: 460, title: 'PAY-90 add refund audit log',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: 'PAY-90', sprint: 'Sprint 20', source: 'story',
+      created: daysAgo(66), merged: daysAgo(64), closed: null, review: daysAgo(65), add: 120, del: 18 },
+    { repo: webRepo.id, number: 461, title: 'bump lodash to patch CVE',
+      state: 'merged', isDraft: 0, author: 'omar', member: null,
+      storyId: null, jira: null, sprint: 'Sprint 20', source: 'date_window',
+      created: daysAgo(63), merged: daysAgo(61), closed: null, review: daysAgo(62), add: 4, del: 4 },
+
+    // Sprint 21 — 5 merged
+    { repo: apiRepo.id, number: 450, title: 'PAY-95 refund idempotency keys',
+      state: 'merged', isDraft: 0, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: 'PAY-95', sprint: 'Sprint 21', source: 'story',
+      created: daysAgo(56), merged: daysAgo(54), closed: null, review: daysAgo(55), add: 64, del: 20 },
+    { repo: webRepo.id, number: 451, title: 'OPS-80 sprint burndown chart perf',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: 'OPS-80', sprint: 'Sprint 21', source: 'story',
+      created: daysAgo(54), merged: daysAgo(52), closed: null, review: daysAgo(53), add: 33, del: 11 },
+    { repo: apiRepo.id, number: 452, title: 'pin ci runner image',
+      state: 'merged', isDraft: 0, author: 'omar', member: null,
+      storyId: null, jira: null, sprint: 'Sprint 21', source: 'date_window',
+      created: daysAgo(52), merged: daysAgo(50), closed: null, review: daysAgo(51), add: 9, del: 3 },
+    { repo: webRepo.id, number: 453, title: 'CHKOUT-220 saved items empty state',
+      state: 'merged', isDraft: 0, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: 'CHKOUT-220', sprint: 'Sprint 21', source: 'story',
+      created: daysAgo(50), merged: daysAgo(48), closed: null, review: daysAgo(49), add: 27, del: 6 },
+    { repo: apiRepo.id, number: 454, title: 'tune connection pool size',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: null, sprint: 'Sprint 21', source: 'date_window',
+      created: daysAgo(48), merged: daysAgo(46), closed: null, review: daysAgo(47), add: 14, del: 5 },
+
+    // Sprint 22 — 8 merged (peak of the trend)
+    { repo: apiRepo.id, number: 440, title: 'PAY-100 refund reason codes',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: 'PAY-100', sprint: 'Sprint 22', source: 'story',
+      created: daysAgo(40), merged: daysAgo(38), closed: null, review: daysAgo(39), add: 51, del: 9 },
+    { repo: webRepo.id, number: 441, title: 'OPS-85 dashboard loading skeleton',
+      state: 'merged', isDraft: 0, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: 'OPS-85', sprint: 'Sprint 22', source: 'story',
+      created: daysAgo(39), merged: daysAgo(37), closed: null, review: daysAgo(38), add: 22, del: 7 },
+    { repo: apiRepo.id, number: 442, title: 'rotate log aggregator credentials',
+      state: 'merged', isDraft: 0, author: 'omar', member: null,
+      storyId: null, jira: null, sprint: 'Sprint 22', source: 'date_window',
+      created: daysAgo(38), merged: daysAgo(36), closed: null, review: daysAgo(37), add: 3, del: 3 },
+    { repo: webRepo.id, number: 443, title: 'CHKOUT-225 quantity stepper a11y fix',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: 'CHKOUT-225', sprint: 'Sprint 22', source: 'story',
+      created: daysAgo(37), merged: daysAgo(35), closed: null, review: daysAgo(36), add: 19, del: 4 },
+    { repo: apiRepo.id, number: 444, title: 'reduce cold query latency',
+      state: 'merged', isDraft: 0, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: null, sprint: 'Sprint 22', source: 'date_window',
+      created: daysAgo(36), merged: daysAgo(34), closed: null, review: daysAgo(35), add: 41, del: 12 },
+    { repo: webRepo.id, number: 445, title: 'MOB-160 sync conflict banner',
+      state: 'merged', isDraft: 0, author: 'omar', member: null,
+      storyId: null, jira: 'MOB-160', sprint: 'Sprint 22', source: 'story',
+      created: daysAgo(35), merged: daysAgo(33), closed: null, review: daysAgo(34), add: 58, del: 15 },
+    { repo: apiRepo.id, number: 446, title: 'add retry backoff to webhook sender',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: null, sprint: 'Sprint 22', source: 'date_window',
+      created: daysAgo(34), merged: daysAgo(32), closed: null, review: daysAgo(33), add: 17, del: 6 },
+    { repo: webRepo.id, number: 447, title: 'PAY-105 refund receipt email copy',
+      state: 'merged', isDraft: 0, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: 'PAY-105', sprint: 'Sprint 22', source: 'story',
+      created: daysAgo(33), merged: daysAgo(31), closed: null, review: daysAgo(32), add: 11, del: 2 },
+
+    // Sprint 23 — 4 merged (trend falling back down before Sprint 24)
+    { repo: apiRepo.id, number: 430, title: 'PAY-110 refund partial amount support',
+      state: 'merged', isDraft: 0, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: 'PAY-110', sprint: 'Sprint 23', source: 'story',
+      created: daysAgo(20), merged: daysAgo(18), closed: null, review: daysAgo(19), add: 47, del: 13 },
+    { repo: webRepo.id, number: 431, title: 'trim unused checkout css',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: null, sprint: 'Sprint 23', source: 'date_window',
+      created: daysAgo(19), merged: daysAgo(17), closed: null, review: daysAgo(18), add: 8, del: 21 },
+    { repo: apiRepo.id, number: 432, title: 'OPS-90 alert threshold tuning',
+      state: 'merged', isDraft: 0, author: 'omar', member: null,
+      storyId: null, jira: 'OPS-90', sprint: 'Sprint 23', source: 'story',
+      created: daysAgo(18), merged: daysAgo(16), closed: null, review: daysAgo(17), add: 25, del: 5 },
+    { repo: webRepo.id, number: 433, title: 'upgrade vite to v6',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: null, sprint: 'Sprint 23', source: 'date_window',
+      created: daysAgo(17), merged: daysAgo(15), closed: null, review: daysAgo(16), add: 30, del: 30 },
+  ];
+
+  prs.push(...olderSprintPrs);
+
   prs.forEach((pr) => {
     db.prepare(
       `INSERT INTO pull_requests (
