@@ -33,7 +33,7 @@ function toScalarString(value) {
  * Every value is bound, never interpolated.
  */
 function buildPrFilter(query = {}, options = {}) {
-  const { ignoreRepoFilter = false } = options;
+  const { ignoreRepoFilter = false, ignoreScopeFilter = false } = options;
   const clauses = [];
   const params = [];
   // Same clauses/params, but split by which table's row they constrain.
@@ -68,15 +68,22 @@ function buildPrFilter(query = {}, options = {}) {
   const from = toScalarString(query.from);
   const to = toScalarString(query.to);
 
-  if (mode === 'sprint' && sprints.length) {
-    addPr(`pr.sprint IN (${sprints.map(() => '?').join(', ')})`, ...sprints);
-  } else if (mode === 'release' && release) {
-    addPr(
-      'pr.story_id IN (SELECT id FROM stories WHERE release_date = ?)',
-      release
-    );
-  } else if (mode === 'range' && from && to) {
-    addPr('COALESCE(pr.merged_at, pr.pr_created_at) BETWEEN ? AND ?', from, to);
+  // ignoreScopeFilter lets a caller (the trend window on /by-sprint) see
+  // neighbouring sprints/releases/dates that the active SPRINT/RELEASE/
+  // DATE-RANGE scope would otherwise exclude, while every other filter
+  // (repo, author, state, project, reviewer) still applies below. Mirrors
+  // ignoreRepoFilter's role for /by-repo.
+  if (!ignoreScopeFilter) {
+    if (mode === 'sprint' && sprints.length) {
+      addPr(`pr.sprint IN (${sprints.map(() => '?').join(', ')})`, ...sprints);
+    } else if (mode === 'release' && release) {
+      addPr(
+        'pr.story_id IN (SELECT id FROM stories WHERE release_date = ?)',
+        release
+      );
+    } else if (mode === 'range' && from && to) {
+      addPr('COALESCE(pr.merged_at, pr.pr_created_at) BETWEEN ? AND ?', from, to);
+    }
   }
 
   const repos = toIntArray(query.repo);

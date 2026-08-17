@@ -134,8 +134,22 @@ router.get('/summary', (req, res) => {
 
 // --- Per-sprint comparison -------------------------------------------------
 
+// `trend` is an opt-in trailing-window mode for the "Merged per sprint"
+// chart: when present (a positive integer count of sprints), the SPRINT/
+// RELEASE/DATE-RANGE scope is ignored so neighbouring sprints can appear —
+// this is what lets the chart show trailing context even when the user has
+// drilled into a single sprint — while every other filter (repo, author,
+// state, project, reviewer) still applies via buildPrFilter as normal.
+// Without `trend`, behavior is unchanged: the endpoint stays scope-respecting
+// for the sprint-comparison table.
+const MAX_TREND_SPRINTS = 52;
+
 router.get('/by-sprint', (req, res) => {
-  const { where, params } = buildPrFilter(req.query);
+  const trendCount = Number(req.query.trend);
+  const useTrend = Number.isInteger(trendCount) && trendCount > 0;
+  const trendLimit = useTrend ? Math.min(trendCount, MAX_TREND_SPRINTS) : null;
+
+  const { where, params } = buildPrFilter(req.query, { ignoreScopeFilter: useTrend });
 
   const rows = db
     .prepare(
@@ -166,9 +180,15 @@ router.get('/by-sprint', (req, res) => {
     if (row.is_stale) entry.stale += 1;
   });
 
-  const result = [...bySprint.values()]
+  let result = [...bySprint.values()]
     .map(({ days, ...rest }) => ({ ...rest, median_merge_days: round1(median(days)) }))
     .sort((a, b) => a.sprint.localeCompare(b.sprint, undefined, { numeric: true }));
+
+  // Most recent N sprints by the existing sprint ordering, kept
+  // oldest-to-newest so the chart reads left to right.
+  if (useTrend) {
+    result = result.slice(-trendLimit);
+  }
 
   res.json(result);
 });

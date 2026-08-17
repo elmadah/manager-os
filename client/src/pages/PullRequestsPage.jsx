@@ -10,6 +10,10 @@ import PrTrendChart from '../components/pr/PrTrendChart';
 import PrTable from '../components/pr/PrTable';
 
 const STALE_SYNC_MS = 30 * 60 * 1000;
+// How many trailing sprints the "Merged per sprint" chart shows. Fixed
+// independent of scope so a single-sprint scope (the primary way this
+// dashboard is used) still gets neighbouring sprints to compare against.
+const TREND_SPRINT_COUNT = 6;
 
 export default function PullRequestsPage() {
   const { filters, setFilter, toggleArrayValue, clearAll, queryString } = usePrFilters();
@@ -37,10 +41,19 @@ export default function PullRequestsPage() {
     params.set('sort', sortKey);
     params.set('dir', sortDir);
     const qs = `?${params.toString()}`;
+    // Trend chart data: same filters (repo/author/state/project/reviewer)
+    // as everything else, but with `trend` set so the server ignores the
+    // active SPRINT/RELEASE/DATE-RANGE scope and returns trailing sprints
+    // instead of just the scoped one. Built from `queryString` (not `qs`,
+    // which also carries `sort`/`dir` that /by-sprint doesn't use) so it
+    // only adds the one extra param.
+    const trendParams = new URLSearchParams(queryString);
+    trendParams.set('trend', String(TREND_SPRINT_COUNT));
+    const trendQs = `?${trendParams.toString()}`;
     // /pull-requests/filters is load-bearing: without it there are no filter
     // options and no repo list, so its failure keeps the existing full-page
-    // error behavior. The other five degrade to a safe empty default per
-    // section so the page still renders with whatever succeeded.
+    // error behavior. The rest degrade to a safe empty default per section
+    // so the page still renders with whatever succeeded.
     const sections = [
       { key: 'list', label: 'Pull requests', url: `/pull-requests${qs}`, fallback: { rows: [], total: 0 } },
       {
@@ -57,7 +70,17 @@ export default function PullRequestsPage() {
           storiesWithoutMergedPr: [],
         },
       },
+      // Scope-respecting: feeds the sprint-comparison table shown in
+      // multi-sprint scope, which must keep reflecting the active scope.
       { key: 'bySprint', label: 'Sprint comparison', url: `/pull-requests/by-sprint${qs}`, fallback: [] },
+      // Trailing-window: feeds the trend chart only, so it always has
+      // neighbouring sprints for context regardless of scope. Kept as a
+      // separate request rather than reusing `bySprint` above — reusing it
+      // would either regress the comparison table (if repointed at the
+      // trend data) or leave the chart with a single bar in single-sprint
+      // scope (if the table kept using scope-respecting data but the chart
+      // did too).
+      { key: 'bySprintTrend', label: 'Sprint trend', url: `/pull-requests/by-sprint${trendQs}`, fallback: [] },
       { key: 'byRepo', label: 'Repositories', url: `/pull-requests/by-repo${qs}`, fallback: [] },
       { key: 'byAuthor', label: 'Contributors', url: `/pull-requests/by-author${qs}`, fallback: [] },
     ];
@@ -201,7 +224,12 @@ export default function PullRequestsPage() {
       )}
       {data && (
         <>
-          <PrTrendChart rows={data.bySprint} />
+          <PrTrendChart
+            rows={data.bySprintTrend}
+            selectedSprint={
+              filters.scope === 'sprint' && filters.sprint.length === 1 ? filters.sprint[0] : null
+            }
+          />
           <PrTable
             rows={data.list.rows}
             total={data.list.total}
