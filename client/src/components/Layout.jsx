@@ -11,6 +11,7 @@ import {
   StickyNote,
   Newspaper,
   Settings,
+  GitPullRequest,
 } from 'lucide-react';
 
 const navItems = [
@@ -18,6 +19,7 @@ const navItems = [
   { to: '/projects', label: 'Projects', icon: Columns3 },
   { to: '/team', label: 'Team', icon: Users },
   { to: '/sprints', label: 'Sprints', icon: RefreshCw },
+  { to: '/pull-requests', label: 'Pull Requests', icon: GitPullRequest },
   { to: '/capacity', label: 'Capacity', icon: CalendarCheck },
   { to: '/todos', label: 'Todos', icon: CheckSquare },
   { to: '/blockers', label: 'Blockers', icon: AlertTriangle },

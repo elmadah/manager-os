@@ -8,6 +8,7 @@ import ProjectDetailPage from './pages/ProjectDetailPage';
 import TeamPage from './pages/TeamPage';
 import TeamMemberPage from './pages/TeamMemberPage';
 import SprintsPage from './pages/SprintsPage';
+import PullRequestsPage from './pages/PullRequestsPage';
 import TodosPage from './pages/TodosPage';
 import BlockersPage from './pages/BlockersPage';
 import ImportPage from './pages/ImportPage';
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/team" element={<TeamPage />} />
           <Route path="/team/:id" element={<TeamMemberPage />} />
           <Route path="/sprints" element={<SprintsPage />} />
+          <Route path="/pull-requests" element={<PullRequestsPage />} />
           <Route path="/todos" element={<TodosPage />} />
           <Route path="/blockers" element={<BlockersPage />} />
           <Route path="/notes" element={<NotesPage />} />
