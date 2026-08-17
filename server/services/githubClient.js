@@ -1,6 +1,15 @@
 const https = require('https');
 const http = require('http');
 
+// TLS verification is intentionally left on (the Node default) for GitHub
+// requests, unlike server/routes/jiraSettings.js which disables it with
+// rejectUnauthorized: false. That divergence is deliberate: for GitHub
+// Enterprise Server behind an internal CA, the correct fix is to trust that
+// CA via the NODE_EXTRA_CA_CERTS environment variable, not to disable
+// certificate verification.
+
+const REQUEST_TIMEOUT_MS = 30000;
+
 const PR_PAGE_QUERY = `
 query($owner: String!, $name: String!, $cursor: String) {
   repository(owner: $owner, name: $name) {
@@ -27,6 +36,29 @@ function graphqlEndpoint(baseUrl) {
   return trimmed.endsWith('/graphql') ? trimmed : `${trimmed}/graphql`;
 }
 
+/**
+ * Maps a GitHub GraphQL `errors` array to an HTTP-like status code so
+ * callers can distinguish failure modes (e.g. a missing/inaccessible repo
+ * vs. a bad token) without inspecting error messages themselves.
+ *
+ * GitHub returns HTTP 200 with a populated `errors` array for GraphQL-level
+ * failures such as a missing repository, so this classification is what
+ * lets fetchPullRequestPage's 404 backstop actually be reachable in
+ * practice, and lets a sync loop decide whether to abort entirely (401) or
+ * skip just one repo (404).
+ */
+function classifyGraphqlErrors(errors) {
+  if (!Array.isArray(errors) || errors.length === 0) {
+    return 502;
+  }
+  const types = errors
+    .filter((e) => e && typeof e === 'object')
+    .map((e) => e.type);
+  if (types.includes('NOT_FOUND')) return 404;
+  if (types.includes('FORBIDDEN')) return 403;
+  return 502;
+}
+
 function graphql(settings, query, variables) {
   const endpoint = graphqlEndpoint(settings.base_url);
   const parsed = new URL(endpoint);
@@ -46,6 +78,7 @@ function graphql(settings, query, variables) {
         },
       },
       (res) => {
+        res.setEncoding('utf8');
         let body = '';
         res.on('data', (chunk) => (body += chunk));
         res.on('end', () => {
@@ -67,7 +100,8 @@ function graphql(settings, query, variables) {
           }
           if (json.errors && json.errors.length) {
             const error = new Error(json.errors.map((e) => e.message).join('; '));
-            error.status = 200;
+            error.status = classifyGraphqlErrors(json.errors);
+            error.graphqlErrors = json.errors;
             return reject(error);
           }
           resolve(json.data);
@@ -75,6 +109,12 @@ function graphql(settings, query, variables) {
       }
     );
     req.on('error', reject);
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy();
+      const error = new Error(`GitHub API request timed out after ${REQUEST_TIMEOUT_MS}ms`);
+      error.status = 504;
+      reject(error);
+    });
     req.write(payload);
     req.end();
   });
@@ -95,4 +135,4 @@ async function fetchPullRequestPage(settings, { owner, name, cursor }) {
   };
 }
 
-module.exports = { graphql, fetchPullRequestPage, graphqlEndpoint };
+module.exports = { graphql, fetchPullRequestPage, graphqlEndpoint, classifyGraphqlErrors };
