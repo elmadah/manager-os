@@ -26,6 +26,28 @@ test('parseJiraKey tolerates null inputs', () => {
   assert.equal(parseJiraKey(null, null), null);
 });
 
+test('parseJiraKey rejects a false-positive title token when known prefixes are given', () => {
+  assert.equal(parseJiraKey('Migrate logs to UTF-8', 'main', ['PAY', 'OPS']), null);
+});
+
+test('parseJiraKey documents the fallback: UTF-8 is accepted with no known-prefix list', () => {
+  assert.equal(parseJiraKey('Migrate logs to UTF-8', 'main'), 'UTF-8');
+});
+
+test('parseJiraKey finds a real key among noise when known prefixes are given', () => {
+  assert.equal(
+    parseJiraKey('Migrate logs to UTF-8, closes PAY-118', 'main', ['PAY', 'OPS']),
+    'PAY-118'
+  );
+});
+
+test('parseJiraKey accepts a Set of known prefixes', () => {
+  assert.equal(
+    parseJiraKey('Migrate logs to UTF-8, closes PAY-118', 'main', new Set(['PAY'])),
+    'PAY-118'
+  );
+});
+
 const PLANS = [
   { jira_sprint_name: 'Sprint 23', start_date: '2026-07-01', end_date: '2026-07-14' },
   { jira_sprint_name: 'Sprint 24', start_date: '2026-07-15', end_date: '2026-07-28' },
@@ -88,6 +110,28 @@ test('resolveSprint skips plans with no sprint name', () => {
   assert.deepEqual(r, { sprint: null, source: 'none' });
 });
 
+test('resolveSprint tolerates a null element in plans', () => {
+  const withNull = [null, ...PLANS];
+  const r = resolveSprint({
+    story: null, plans: withNull, mergedAt: '2026-07-20T00:00:00Z', createdAt: null,
+  });
+  assert.deepEqual(r, { sprint: 'Sprint 24', source: 'date_window' });
+});
+
+test('resolveSprint matches a PR merged exactly on a window\'s first day', () => {
+  const r = resolveSprint({
+    story: null, plans: PLANS, mergedAt: '2026-07-15T00:00:00Z', createdAt: null,
+  });
+  assert.deepEqual(r, { sprint: 'Sprint 24', source: 'date_window' });
+});
+
+test('resolveSprint matches a PR merged exactly on a window\'s last day', () => {
+  const r = resolveSprint({
+    story: null, plans: PLANS, mergedAt: '2026-07-14T00:00:00Z', createdAt: null,
+  });
+  assert.deepEqual(r, { sprint: 'Sprint 23', source: 'date_window' });
+});
+
 test('firstReviewAt returns the earliest non-author review', () => {
   const reviews = [
     { author_login: 'ahmed', submitted_at: '2026-07-20T12:00:00Z' },
@@ -103,4 +147,9 @@ test('firstReviewAt ignores self-reviews entirely', () => {
 
 test('firstReviewAt returns null for no reviews', () => {
   assert.equal(firstReviewAt([], 'ahmed'), null);
+});
+
+test('firstReviewAt tolerates a null element in reviews', () => {
+  const reviews = [null, { author_login: 'sara', submitted_at: '2026-07-19T09:00:00Z' }];
+  assert.equal(firstReviewAt(reviews, 'ahmed'), '2026-07-19T09:00:00Z');
 });
