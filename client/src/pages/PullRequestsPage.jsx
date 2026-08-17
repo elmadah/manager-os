@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../lib/api';
 import usePrFilters from '../hooks/usePrFilters';
+import PrFilterBar from '../components/pr/PrFilterBar';
 
 const STALE_SYNC_MS = 30 * 60 * 1000;
 
@@ -157,7 +158,16 @@ export default function PullRequestsPage() {
         </p>
       )}
 
-      {/* Task 10 renders PrFilterBar here */}
+      <PrFilterBar
+        filters={filters}
+        options={options}
+        onSetFilter={setFilter}
+        onToggle={toggleArrayValue}
+        onClear={clearAll}
+        onSync={runSync}
+        syncing={syncing}
+        lastSyncAt={options.lastSyncAt}
+      />
       {/* Task 11 renders PrReadinessPanel / PrSprintComparison here */}
       {/* Task 12 renders PrRepoTable and PrContributorTable here */}
       {/* Task 13 renders PrTrendChart and PrTable here */}
