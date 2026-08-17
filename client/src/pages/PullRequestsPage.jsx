@@ -4,6 +4,8 @@ import usePrFilters from '../hooks/usePrFilters';
 import PrFilterBar from '../components/pr/PrFilterBar';
 import PrReadinessPanel from '../components/pr/PrReadinessPanel';
 import PrSprintComparison from '../components/pr/PrSprintComparison';
+import PrRepoTable from '../components/pr/PrRepoTable';
+import PrContributorTable from '../components/pr/PrContributorTable';
 
 const STALE_SYNC_MS = 30 * 60 * 1000;
 
@@ -178,7 +180,18 @@ export default function PullRequestsPage() {
       ) : (
         <PrSprintComparison rows={data.bySprint} />
       ))}
-      {/* Task 12 renders PrRepoTable and PrContributorTable here */}
+      {data && (
+        <>
+          <PrRepoTable
+            rows={data.byRepo}
+            activeRepoId={filters.repo[0] || ''}
+            onSelectRepo={(id) =>
+              setFilter('repo', filters.repo.includes(String(id)) ? [] : [String(id)])
+            }
+          />
+          <PrContributorTable rows={data.byAuthor} />
+        </>
+      )}
       {/* Task 13 renders PrTrendChart and PrTable here */}
 
       <pre className="text-xs bg-gray-50 p-3 rounded border overflow-auto">
