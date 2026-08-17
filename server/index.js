@@ -32,6 +32,7 @@ const standupsRouter = require('./routes/standups');
 const capacityRouter = require('./routes/capacity');
 const appSettingsRouter = require('./routes/appSettings');
 const githubSettingsRouter = require('./routes/githubSettings');
+const pullRequestsRouter = require('./routes/pullRequests');
 
 app.use('/api/projects', projectsRouter);
 app.use('/api', featuresRouter);
@@ -53,6 +54,7 @@ app.use('/api/standups', standupsRouter);
 app.use('/api/capacity-plans', capacityRouter);
 app.use('/api/settings/app', appSettingsRouter);
 app.use('/api/settings/github', githubSettingsRouter);
+app.use('/api/pull-requests', pullRequestsRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
