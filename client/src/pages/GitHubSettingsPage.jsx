@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CheckCircle2, AlertTriangle, Info } from 'lucide-react';
 import api from '../lib/api';
 import SettingsTabs from '../components/SettingsTabs';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 /**
  * Warn about a base_url that is plausibly the github.com *website* address
@@ -49,6 +50,7 @@ export default function GitHubSettingsPage() {
   const [newRepo, setNewRepo] = useState({ owner: '', name: '' });
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [repoToRemove, setRepoToRemove] = useState(null);
 
   async function load() {
     const [settings, repoList, projectList] = await Promise.all([
@@ -144,17 +146,34 @@ export default function GitHubSettingsPage() {
   }
 
   async function removeRepo(id) {
-    await api.del(`/settings/github/repos/${id}`);
-    await load();
+    try {
+      await api.del(`/settings/github/repos/${id}`);
+      setStatus(null);
+      await load();
+    } catch (err) {
+      setStatus({ ok: false, message: (err.data && err.data.error) || err.message });
+    }
+  }
+
+  async function confirmRemoveRepo() {
+    if (!repoToRemove) return;
+    const id = repoToRemove.id;
+    setRepoToRemove(null);
+    await removeRepo(id);
   }
 
   async function setRepoProject(repo, projectId) {
-    await api.put(`/settings/github/repos/${repo.id}`, {
-      label: repo.label,
-      project_id: projectId ? Number(projectId) : null,
-      is_active: repo.is_active,
-    });
-    await load();
+    try {
+      await api.put(`/settings/github/repos/${repo.id}`, {
+        label: repo.label,
+        project_id: projectId ? Number(projectId) : null,
+        is_active: repo.is_active,
+      });
+      setStatus(null);
+      await load();
+    } catch (err) {
+      setStatus({ ok: false, message: (err.data && err.data.error) || err.message });
+    }
   }
 
   return (
@@ -221,7 +240,7 @@ export default function GitHubSettingsPage() {
             <button onClick={sync} disabled={busy}
               className="px-3 py-2 text-sm border border-gray-300 rounded disabled:opacity-50">Sync now</button>
             {isDirty && (
-              <span className="text-[11px] text-amber-700">
+              <span role="status" aria-live="polite" className="text-[11px] text-amber-700">
                 Unsaved changes — Save before testing or syncing so they check the values above.
               </span>
             )}
@@ -295,7 +314,7 @@ export default function GitHubSettingsPage() {
                   </td>
                   <td className="py-1.5 px-2 text-right">
                     <button
-                      onClick={() => removeRepo(repo.id)}
+                      onClick={() => setRepoToRemove(repo)}
                       aria-label={`Remove ${repo.owner}/${repo.name}`}
                       className="text-red-600 hover:underline"
                     >
@@ -315,6 +334,16 @@ export default function GitHubSettingsPage() {
           </table>
         </section>
       </div>
+
+      {repoToRemove && (
+        <ConfirmDialog
+          title="Remove tracked repository?"
+          message={`This will stop tracking ${repoToRemove.owner}/${repoToRemove.name} and permanently discard its synced pull request history. This cannot be undone.`}
+          confirmLabel="Remove repository"
+          onConfirm={confirmRemoveRepo}
+          onCancel={() => setRepoToRemove(null)}
+        />
+      )}
     </div>
   );
 }
