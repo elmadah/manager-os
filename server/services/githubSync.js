@@ -49,8 +49,33 @@ function loadKnownPrefixes() {
   return prefixes;
 }
 
+/**
+ * Build a `key IN (...)` placeholder list and its bound params without ever
+ * interpolating values into the SQL text. Dedupes and drops falsy keys.
+ */
+function inClauseParams(keys) {
+  const unique = Array.from(new Set((keys || []).filter(Boolean)));
+  return { placeholders: unique.map(() => '?').join(','), params: unique };
+}
+
+/**
+ * Look up stories for a whole page of PRs in one query instead of one query
+ * per PR (sql.js re-prepares SQL text on every db.prepare() call, so at
+ * ~3,000-PR scale a per-PR lookup is thousands of avoidable prepares).
+ */
+function loadStoriesByKeys(keys) {
+  const { placeholders, params } = inClauseParams(keys);
+  const map = new Map();
+  if (!placeholders) return map;
+  const rows = db
+    .prepare(`SELECT id, sprint, key FROM stories WHERE key IN (${placeholders})`)
+    .all(...params);
+  rows.forEach((r) => map.set(r.key, { id: r.id, sprint: r.sprint }));
+  return map;
+}
+
 /** Flatten one GraphQL PR node into the row shape plus its reviews. */
-function mapNode(node, { repoId, plans, memberMap, knownPrefixes }) {
+function mapNode(node, { repoId, plans, memberMap, knownPrefixes, storyMap }) {
   const authorLogin = node.author ? node.author.login : null;
   const reviews = (node.reviews && node.reviews.nodes ? node.reviews.nodes : [])
     .filter((rv) => rv && rv.submittedAt)
@@ -61,9 +86,7 @@ function mapNode(node, { repoId, plans, memberMap, knownPrefixes }) {
     }));
 
   const jiraKey = parseJiraKey(node.title, node.headRefName, knownPrefixes);
-  const story = jiraKey
-    ? db.prepare('SELECT id, sprint FROM stories WHERE key = ?').get(jiraKey)
-    : null;
+  const story = jiraKey ? (storyMap && storyMap.get(jiraKey)) || null : null;
 
   const { sprint, source } = resolveSprint({
     story: story || null,
@@ -152,6 +175,20 @@ function persist(mapped, memberMap) {
   });
 }
 
+/**
+ * True if a PR's updatedAt is after the cutoff. Both arguments MUST be
+ * ISO-8601 UTC timestamps with a 'T' separator and 'Z' suffix (e.g.
+ * "2026-08-17T09:00:00Z") for this string comparison to be a valid stand-in
+ * for chronological comparison. github_settings.last_sync_at and
+ * github_repos.last_sync_at are written in exactly this format via
+ * strftime('%Y-%m-%dT%H:%M:%SZ','now') for this reason — do not switch
+ * either column back to datetime('now') (space separator, no 'Z'), which
+ * silently breaks same-day incremental syncs (see githubSync.test.js).
+ */
+function isFresh(updatedAt, cutoff) {
+  return updatedAt > cutoff;
+}
+
 /** Walk a repo's PRs newest-first, stopping once updatedAt predates the cutoff. */
 async function syncRepo(settings, repo, cutoff, plans, memberMap, knownPrefixes) {
   let cursor = null;
@@ -164,9 +201,12 @@ async function syncRepo(settings, repo, cutoff, plans, memberMap, knownPrefixes)
       cursor,
     });
 
-    const fresh = page.nodes.filter((n) => n.updatedAt > cutoff);
+    const fresh = page.nodes.filter((n) => isFresh(n.updatedAt, cutoff));
+    const storyMap = loadStoriesByKeys(
+      fresh.map((n) => parseJiraKey(n.title, n.headRefName, knownPrefixes))
+    );
     const mapped = fresh.map((n) =>
-      mapNode(n, { repoId: repo.id, plans, memberMap, knownPrefixes })
+      mapNode(n, { repoId: repo.id, plans, memberMap, knownPrefixes, storyMap })
     );
 
     if (mapped.length) {
@@ -202,17 +242,24 @@ async function syncAll() {
 
   const synced = [];
   const failed = [];
+  let abortError = null;
 
   for (const repo of repos) {
     const slug = `${repo.owner}/${repo.name}`;
     try {
       const prs = await syncRepo(settings, repo, cutoff, plans, memberMap, knownPrefixes);
       db.prepare(
-        "UPDATE github_repos SET last_sync_at = datetime('now'), last_sync_error = NULL WHERE id = ?"
+        "UPDATE github_repos SET last_sync_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'), last_sync_error = NULL WHERE id = ?"
       ).run(repo.id);
       synced.push({ repo: slug, prs });
     } catch (err) {
-      if (err.status === 401) throw err;
+      if (err.status === 401) {
+        // Bad token: stop syncing further repos, but let the trailing
+        // last_sync_at advance below still run for repos that already
+        // succeeded, then rethrow so the caller still sees the 401.
+        abortError = err;
+        break;
+      }
       db.prepare('UPDATE github_repos SET last_sync_error = ? WHERE id = ?').run(
         err.message,
         repo.id
@@ -224,9 +271,11 @@ async function syncAll() {
 
   if (synced.length) {
     db.prepare(
-      "UPDATE github_settings SET last_sync_at = datetime('now'), updated_at = datetime('now') WHERE id = 'default'"
+      "UPDATE github_settings SET last_sync_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'), updated_at = datetime('now') WHERE id = 'default'"
     ).run();
   }
+
+  if (abortError) throw abortError;
 
   return {
     synced,
@@ -239,4 +288,4 @@ async function syncAll() {
   };
 }
 
-module.exports = { syncAll, mapNode };
+module.exports = { syncAll, mapNode, isFresh, inClauseParams, loadStoriesByKeys };
