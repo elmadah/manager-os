@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../lib/api';
 import usePrFilters from '../hooks/usePrFilters';
 import PrFilterBar from '../components/pr/PrFilterBar';
+import PrReadinessPanel from '../components/pr/PrReadinessPanel';
+import PrSprintComparison from '../components/pr/PrSprintComparison';
 
 const STALE_SYNC_MS = 30 * 60 * 1000;
 
@@ -168,7 +170,14 @@ export default function PullRequestsPage() {
         syncing={syncing}
         lastSyncAt={options.lastSyncAt}
       />
-      {/* Task 11 renders PrReadinessPanel / PrSprintComparison here */}
+      {data && (data.summary.isSingle ? (
+        <PrReadinessPanel
+          summary={data.summary}
+          scopeLabel={filters.scope === 'release' ? `Release ${filters.release}` : filters.sprint[0]}
+        />
+      ) : (
+        <PrSprintComparison rows={data.bySprint} />
+      ))}
       {/* Task 12 renders PrRepoTable and PrContributorTable here */}
       {/* Task 13 renders PrTrendChart and PrTable here */}
 
