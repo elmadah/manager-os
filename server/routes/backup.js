@@ -65,9 +65,12 @@ router.post('/import/restore', (req, res) => {
 
       // Insert team_members
       if (data.team_members?.length) {
-        const stmt = db.prepare(`INSERT INTO team_members (id, name, role, email, created_at) VALUES (?, ?, ?, ?, ?)`);
+        // github_login must be restored too, or every contributor comes back
+        // unmapped and all future GitHub syncs record author_member_id/
+        // reviewer_member_id = NULL for them.
+        const stmt = db.prepare(`INSERT INTO team_members (id, name, role, email, github_login, created_at) VALUES (?, ?, ?, ?, ?, ?)`);
         for (const r of data.team_members) {
-          stmt.run(r.id, r.name, r.role || '', r.email || '', r.created_at);
+          stmt.run(r.id, r.name, r.role || '', r.email || '', r.github_login || null, r.created_at);
         }
       }
 

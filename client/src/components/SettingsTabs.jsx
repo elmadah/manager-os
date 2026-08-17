@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 
 const SETTINGS_TABS = [
   { to: '/settings', label: 'General', end: true },
+  { to: '/settings/github', label: 'GitHub' },
   { to: '/settings/import-export', label: 'Import & Export' },
   { to: '/settings/about', label: 'About' },
 ];

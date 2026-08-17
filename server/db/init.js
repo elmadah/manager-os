@@ -114,6 +114,9 @@ const db = {
     // Level field for team members (e.g. C11, C12, Contractor)
     migrate('team_members', 'level', 'TEXT');
 
+    // GitHub integration migrations
+    migrate('team_members', 'github_login', 'TEXT');
+
     // Migrate team_members.team_id data into junction table
     const existing = sqlDb.exec(
       `SELECT id, team_id FROM team_members WHERE team_id IS NOT NULL`

@@ -25,9 +25,14 @@ cd server && npm run dev
 
 # Client dev only
 cd client && npm run dev
+
+# Run server unit tests (Node's built-in runner, no dependencies)
+cd server && npm test
 ```
 
-No test framework is configured. No linter is configured.
+Server unit tests cover the pure logic in `server/services/` (`prResolve.js`,
+`prFilters.js`, `githubClient.js`, `githubSync.js`) using Node's built-in
+`node --test` runner. There is no client test framework and no linter.
 
 ## Architecture
 
@@ -38,15 +43,15 @@ Monorepo with two independent npm packages (`client/` and `server/`) coordinated
 - **Runtime**: Node.js with Express (CommonJS modules)
 - **Database**: SQLite via `sql.js` (pure JS, no native bindings). DB file lives at `data/manager-os.db`
 - **DB layer** (`server/db/init.js`): Wraps sql.js with a better-sqlite3-compatible API (`db.prepare(sql).run/get/all(...params)`). Auto-persists to disk after each write unless inside a transaction. Schema is in `server/db/schema.sql` and applied on every startup with `CREATE TABLE IF NOT EXISTS`. Migrations for adding columns are done inline in `init.js` using `PRAGMA table_info`.
-- **Routes** (`server/routes/`): One file per domain entity (projects, features, team, stories/import, sprints, blockers, oneOnOnes, notes, todos, digest, backup, timeline). All mounted under `/api` in `server/index.js`.
-- **Services** (`server/services/`): Business logic for sprint diff calculations and weekly digest generation.
+- **Routes** (`server/routes/`): One file per domain entity (projects, features, team, stories/import, sprints, blockers, oneOnOnes, notes, todos, digest, backup, timeline, pullRequests, githubSettings). All mounted under `/api` in `server/index.js`.
+- **Services** (`server/services/`): Business logic for sprint diff calculations, weekly digest generation, and GitHub PR sync (`githubClient.js`, `githubSync.js`, `prResolve.js`, `prFilters.js`).
 - Some routers mount at `/api` directly (features, oneOnOnes, backup) rather than a sub-path — check `server/index.js` for the exact mount points.
 
 ### Client (`client/`)
 
 - **Stack**: React 18, React Router v7, Tailwind CSS v4 (via `@tailwindcss/vite` plugin), Recharts, `@hello-pangea/dnd` (fork of react-beautiful-dnd), lucide-react icons
 - **API client** (`client/src/lib/api.js`): Thin wrapper around fetch with `api.get/post/put/del` methods. Base URL configurable via `VITE_API_URL` env var, defaults to `/api`.
-- **Pages** (`client/src/pages/`): One component per route, mapped in `App.jsx`
+- **Pages** (`client/src/pages/`): One component per route, mapped in `App.jsx`. `PullRequestsPage.jsx` is the GitHub PR stats dashboard (repos, contributors, trend, and PR table, filterable by sprint/release/date-range and drillable by repo), backed by `usePrFilters` for URL-synced filter state.
 - **Shared components** (`client/src/components/`): Layout (sidebar nav + outlet), ErrorBoundary, ToastProvider, LoadingBar, NotesPanel
 - **Routing**: All routes are children of `<Layout />` which provides the sidebar shell
 

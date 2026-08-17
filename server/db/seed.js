@@ -282,6 +282,227 @@ async function seed() {
   oneOnOnes.forEach(o => insertOneOnOne.run(...o));
   console.log(`Inserted ${oneOnOnes.length} one-on-one entries.`);
 
+  // --- GitHub PR sample data -------------------------------------------------
+
+  db.prepare('DELETE FROM pr_reviews').run();
+  db.prepare('DELETE FROM pull_requests').run();
+  db.prepare('DELETE FROM github_repos').run();
+
+  // Always refresh last_sync_at so the "synced N minutes ago" indicator has a
+  // real value, but never clobber a base_url/pat_token/sync_days_back a
+  // developer has already configured on their own machine.
+  db.prepare(
+    `INSERT INTO github_settings (id, base_url, pat_token, sync_days_back, last_sync_at)
+     VALUES ('default', ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+     ON CONFLICT(id) DO UPDATE SET last_sync_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')`
+  ).run('https://api.github.com', 'ghp_seedtoken0000', 180);
+
+  const firstProject = db.prepare('SELECT id FROM projects ORDER BY id LIMIT 1').get();
+  const ghMembers = db.prepare('SELECT id, name FROM team_members ORDER BY id LIMIT 3').all();
+
+  // Give the first two members a GitHub login; leave the third unmapped so the
+  // UI's "raw login" path is exercised.
+  if (ghMembers[0]) db.prepare('UPDATE team_members SET github_login = ? WHERE id = ?').run('ahmed', ghMembers[0].id);
+  if (ghMembers[1]) db.prepare('UPDATE team_members SET github_login = ? WHERE id = ?').run('sara', ghMembers[1].id);
+
+  const repoRows = [
+    ['acme', 'api', 'API', firstProject ? firstProject.id : null, null],
+    ['acme', 'web', 'Web', firstProject ? firstProject.id : null, null],
+    ['acme', 'legacy-billing', 'Legacy billing', null, '404 Not Found'],
+  ];
+  repoRows.forEach(([owner, name, label, projectId, err]) => {
+    db.prepare(
+      "INSERT INTO github_repos (owner, name, label, project_id, is_active, last_sync_at, last_sync_error) VALUES (?,?,?,?,1,strftime('%Y-%m-%dT%H:%M:%SZ','now'),?)"
+    ).run(owner, name, label, projectId, err);
+  });
+
+  const apiRepo = db.prepare("SELECT id FROM github_repos WHERE name = 'api'").get();
+  const webRepo = db.prepare("SELECT id FROM github_repos WHERE name = 'web'").get();
+  const ghStory = db.prepare('SELECT id, sprint FROM stories WHERE sprint IS NOT NULL ORDER BY id LIMIT 1').get();
+  const ghSprintName = ghStory ? ghStory.sprint : 'Sprint 1';
+
+  function daysAgo(n) {
+    return new Date(Date.now() - n * 86400000).toISOString();
+  }
+
+  const prs = [
+    // linked to a real story, merged, by a mapped member
+    { repo: apiRepo.id, number: 412, title: 'PAY-118 add refund webhook',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: ghStory ? ghStory.id : null, jira: 'PAY-118', sprint: ghSprintName, source: 'story',
+      created: daysAgo(9), merged: daysAgo(7), closed: null, review: daysAgo(8), add: 210, del: 40 },
+    // open and stale: no review, older than 3 days
+    { repo: webRepo.id, number: 409, title: 'PAY-120 checkout error states',
+      state: 'open', isDraft: 0, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: 'PAY-120', sprint: ghSprintName, source: 'story',
+      created: daysAgo(11), merged: null, closed: null, review: null, add: 88, del: 12 },
+    // no Jira key, attributed by date window
+    { repo: apiRepo.id, number: 404, title: 'bump deps',
+      state: 'merged', isDraft: 0, author: 'omar', member: null,
+      storyId: null, jira: null, sprint: ghSprintName, source: 'date_window',
+      created: daysAgo(5), merged: daysAgo(5), closed: null, review: daysAgo(5), add: 6, del: 6 },
+    // open but fresh, so not stale
+    { repo: webRepo.id, number: 415, title: 'OPS-77 sprint burndown fix',
+      state: 'open', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: 'OPS-77', sprint: ghSprintName, source: 'story',
+      created: daysAgo(1), merged: null, closed: null, review: null, add: 45, del: 30 },
+    // closed (not merged) — exercises the "closed" render path
+    { repo: webRepo.id, number: 418, title: 'CHKOUT-210 remove legacy cart flag',
+      state: 'closed', isDraft: 0, author: 'omar', member: null,
+      storyId: null, jira: 'CHKOUT-210', sprint: ghSprintName, source: 'story',
+      created: daysAgo(6), merged: null, closed: daysAgo(4), review: null, add: 15, del: 60 },
+    // draft, open, no review, older than 3 days — must NOT be flagged stale
+    { repo: apiRepo.id, number: 420, title: 'MOB-150 experimental sync draft',
+      state: 'open', isDraft: 1, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: 'MOB-150', sprint: ghSprintName, source: 'story',
+      created: daysAgo(5), merged: null, closed: null, review: null, add: 5, del: 2 },
+    // merged PR carrying multiple review states, one from an unmapped login
+    { repo: webRepo.id, number: 422, title: 'CHKOUT-215 tax display fix',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: 'CHKOUT-215', sprint: ghSprintName, source: 'story',
+      created: daysAgo(6), merged: daysAgo(4), closed: null, review: daysAgo(5.5), add: 32, del: 8 },
+  ];
+
+  // Additional merged PRs spanning older sprints (numeric-aware "Sprint N"
+  // names, all older than the existing "Sprint 24" rows above) so the
+  // "Merged per sprint" trend chart has real shape instead of one bar.
+  // Merged counts per sprint are deliberately uneven (2, 5, 8, 4, then the
+  // existing 3 in Sprint 24) to draw a rising-then-falling trend, spread
+  // across both repos and across mapped (ahmed/sara) and unmapped (omar)
+  // authors so per-repo/per-contributor breakdowns stay meaningful when a
+  // user filters to an older sprint.
+  const olderSprintPrs = [
+    // Sprint 20 — 2 merged
+    { repo: apiRepo.id, number: 460, title: 'PAY-90 add refund audit log',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: 'PAY-90', sprint: 'Sprint 20', source: 'story',
+      created: daysAgo(66), merged: daysAgo(64), closed: null, review: daysAgo(65), add: 120, del: 18 },
+    { repo: webRepo.id, number: 461, title: 'bump lodash to patch CVE',
+      state: 'merged', isDraft: 0, author: 'omar', member: null,
+      storyId: null, jira: null, sprint: 'Sprint 20', source: 'date_window',
+      created: daysAgo(63), merged: daysAgo(61), closed: null, review: daysAgo(62), add: 4, del: 4 },
+
+    // Sprint 21 — 5 merged
+    { repo: apiRepo.id, number: 450, title: 'PAY-95 refund idempotency keys',
+      state: 'merged', isDraft: 0, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: 'PAY-95', sprint: 'Sprint 21', source: 'story',
+      created: daysAgo(56), merged: daysAgo(54), closed: null, review: daysAgo(55), add: 64, del: 20 },
+    { repo: webRepo.id, number: 451, title: 'OPS-80 sprint burndown chart perf',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: 'OPS-80', sprint: 'Sprint 21', source: 'story',
+      created: daysAgo(54), merged: daysAgo(52), closed: null, review: daysAgo(53), add: 33, del: 11 },
+    { repo: apiRepo.id, number: 452, title: 'pin ci runner image',
+      state: 'merged', isDraft: 0, author: 'omar', member: null,
+      storyId: null, jira: null, sprint: 'Sprint 21', source: 'date_window',
+      created: daysAgo(52), merged: daysAgo(50), closed: null, review: daysAgo(51), add: 9, del: 3 },
+    { repo: webRepo.id, number: 453, title: 'CHKOUT-220 saved items empty state',
+      state: 'merged', isDraft: 0, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: 'CHKOUT-220', sprint: 'Sprint 21', source: 'story',
+      created: daysAgo(50), merged: daysAgo(48), closed: null, review: daysAgo(49), add: 27, del: 6 },
+    { repo: apiRepo.id, number: 454, title: 'tune connection pool size',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: null, sprint: 'Sprint 21', source: 'date_window',
+      created: daysAgo(48), merged: daysAgo(46), closed: null, review: daysAgo(47), add: 14, del: 5 },
+
+    // Sprint 22 — 8 merged (peak of the trend)
+    { repo: apiRepo.id, number: 440, title: 'PAY-100 refund reason codes',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: 'PAY-100', sprint: 'Sprint 22', source: 'story',
+      created: daysAgo(40), merged: daysAgo(38), closed: null, review: daysAgo(39), add: 51, del: 9 },
+    { repo: webRepo.id, number: 441, title: 'OPS-85 dashboard loading skeleton',
+      state: 'merged', isDraft: 0, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: 'OPS-85', sprint: 'Sprint 22', source: 'story',
+      created: daysAgo(39), merged: daysAgo(37), closed: null, review: daysAgo(38), add: 22, del: 7 },
+    { repo: apiRepo.id, number: 442, title: 'rotate log aggregator credentials',
+      state: 'merged', isDraft: 0, author: 'omar', member: null,
+      storyId: null, jira: null, sprint: 'Sprint 22', source: 'date_window',
+      created: daysAgo(38), merged: daysAgo(36), closed: null, review: daysAgo(37), add: 3, del: 3 },
+    { repo: webRepo.id, number: 443, title: 'CHKOUT-225 quantity stepper a11y fix',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: 'CHKOUT-225', sprint: 'Sprint 22', source: 'story',
+      created: daysAgo(37), merged: daysAgo(35), closed: null, review: daysAgo(36), add: 19, del: 4 },
+    { repo: apiRepo.id, number: 444, title: 'reduce cold query latency',
+      state: 'merged', isDraft: 0, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: null, sprint: 'Sprint 22', source: 'date_window',
+      created: daysAgo(36), merged: daysAgo(34), closed: null, review: daysAgo(35), add: 41, del: 12 },
+    { repo: webRepo.id, number: 445, title: 'MOB-160 sync conflict banner',
+      state: 'merged', isDraft: 0, author: 'omar', member: null,
+      storyId: null, jira: 'MOB-160', sprint: 'Sprint 22', source: 'story',
+      created: daysAgo(35), merged: daysAgo(33), closed: null, review: daysAgo(34), add: 58, del: 15 },
+    { repo: apiRepo.id, number: 446, title: 'add retry backoff to webhook sender',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: null, sprint: 'Sprint 22', source: 'date_window',
+      created: daysAgo(34), merged: daysAgo(32), closed: null, review: daysAgo(33), add: 17, del: 6 },
+    { repo: webRepo.id, number: 447, title: 'PAY-105 refund receipt email copy',
+      state: 'merged', isDraft: 0, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: 'PAY-105', sprint: 'Sprint 22', source: 'story',
+      created: daysAgo(33), merged: daysAgo(31), closed: null, review: daysAgo(32), add: 11, del: 2 },
+
+    // Sprint 23 — 4 merged (trend falling back down before Sprint 24)
+    { repo: apiRepo.id, number: 430, title: 'PAY-110 refund partial amount support',
+      state: 'merged', isDraft: 0, author: 'sara', member: ghMembers[1] ? ghMembers[1].id : null,
+      storyId: null, jira: 'PAY-110', sprint: 'Sprint 23', source: 'story',
+      created: daysAgo(20), merged: daysAgo(18), closed: null, review: daysAgo(19), add: 47, del: 13 },
+    { repo: webRepo.id, number: 431, title: 'trim unused checkout css',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: null, sprint: 'Sprint 23', source: 'date_window',
+      created: daysAgo(19), merged: daysAgo(17), closed: null, review: daysAgo(18), add: 8, del: 21 },
+    { repo: apiRepo.id, number: 432, title: 'OPS-90 alert threshold tuning',
+      state: 'merged', isDraft: 0, author: 'omar', member: null,
+      storyId: null, jira: 'OPS-90', sprint: 'Sprint 23', source: 'story',
+      created: daysAgo(18), merged: daysAgo(16), closed: null, review: daysAgo(17), add: 25, del: 5 },
+    { repo: webRepo.id, number: 433, title: 'upgrade vite to v6',
+      state: 'merged', isDraft: 0, author: 'ahmed', member: ghMembers[0] ? ghMembers[0].id : null,
+      storyId: null, jira: null, sprint: 'Sprint 23', source: 'date_window',
+      created: daysAgo(17), merged: daysAgo(15), closed: null, review: daysAgo(16), add: 30, del: 30 },
+  ];
+
+  prs.push(...olderSprintPrs);
+
+  prs.forEach((pr) => {
+    db.prepare(
+      `INSERT INTO pull_requests (
+         repo_id, number, title, url, state, is_draft, author_login, author_member_id,
+         base_branch, head_branch, additions, deletions, changed_files,
+         pr_created_at, first_review_at, merged_at, closed_at,
+         jira_key, story_id, sprint, sprint_source
+       ) VALUES (?,?,?,?,?,?,?,?,'main','feature/x',?,?,3,?,?,?,?,?,?,?,?)`
+    ).run(
+      pr.repo, pr.number, pr.title,
+      `https://github.com/acme/repo/pull/${pr.number}`,
+      pr.state, pr.isDraft, pr.author, pr.member, pr.add, pr.del,
+      pr.created, pr.review, pr.merged, pr.closed, pr.jira, pr.storyId, pr.sprint, pr.source
+    );
+
+    if (pr.review) {
+      const saved = db
+        .prepare('SELECT id FROM pull_requests WHERE repo_id = ? AND number = ?')
+        .get(pr.repo, pr.number);
+
+      if (pr.number === 422) {
+        // Multiple review states (approved / changes_requested / commented),
+        // including one from a GitHub login with no matching team member —
+        // exercises the unmapped-reviewer path.
+        const insertReview = db.prepare(
+          'INSERT INTO pr_reviews (pull_request_id, reviewer_login, reviewer_member_id, state, submitted_at) VALUES (?,?,?,?,?)'
+        );
+        insertReview.run(saved.id, 'sara', ghMembers[1] ? ghMembers[1].id : null, 'commented', daysAgo(5.5));
+        insertReview.run(saved.id, 'devon', null, 'changes_requested', daysAgo(5));
+        insertReview.run(saved.id, 'ahmed', ghMembers[0] ? ghMembers[0].id : null, 'approved', daysAgo(4.5));
+      } else {
+        const reviewer = pr.author === 'ahmed' ? 'sara' : 'ahmed';
+        const reviewerMember = reviewer === 'ahmed'
+          ? (ghMembers[0] ? ghMembers[0].id : null)
+          : (ghMembers[1] ? ghMembers[1].id : null);
+        db.prepare(
+          'INSERT INTO pr_reviews (pull_request_id, reviewer_login, reviewer_member_id, state, submitted_at) VALUES (?,?,?,?,?)'
+        ).run(saved.id, reviewer, reviewerMember, 'approved', pr.review);
+      }
+    }
+  });
+
+  console.log(`Seeded 3 github repos and ${prs.length} pull requests`);
+
   db.close();
   console.log('\nSeed complete!');
 }

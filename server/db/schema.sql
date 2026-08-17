@@ -208,3 +208,70 @@ CREATE TABLE IF NOT EXISTS capacity_leave (
 
 CREATE INDEX IF NOT EXISTS idx_capacity_leave_plan ON capacity_leave(plan_id);
 CREATE INDEX IF NOT EXISTS idx_capacity_plan_members_plan ON capacity_plan_members(plan_id);
+
+CREATE TABLE IF NOT EXISTS github_settings (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  base_url TEXT NOT NULL,
+  pat_token TEXT NOT NULL,
+  sync_days_back INTEGER DEFAULT 180,
+  last_sync_at TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS github_repos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner TEXT NOT NULL,
+  name TEXT NOT NULL,
+  label TEXT DEFAULT '',
+  project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  is_active INTEGER DEFAULT 1,
+  last_sync_at TEXT,
+  last_sync_error TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(owner, name)
+);
+
+CREATE TABLE IF NOT EXISTS pull_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  repo_id INTEGER NOT NULL REFERENCES github_repos(id) ON DELETE CASCADE,
+  number INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  url TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('open','merged','closed')),
+  is_draft INTEGER DEFAULT 0,
+  author_login TEXT,
+  author_member_id INTEGER REFERENCES team_members(id) ON DELETE SET NULL,
+  base_branch TEXT,
+  head_branch TEXT,
+  additions INTEGER DEFAULT 0,
+  deletions INTEGER DEFAULT 0,
+  changed_files INTEGER DEFAULT 0,
+  pr_created_at TEXT,
+  first_review_at TEXT,
+  merged_at TEXT,
+  closed_at TEXT,
+  jira_key TEXT,
+  story_id INTEGER REFERENCES stories(id) ON DELETE SET NULL,
+  sprint TEXT,
+  sprint_source TEXT CHECK(sprint_source IN ('story','date_window','none')),
+  synced_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(repo_id, number)
+);
+
+CREATE TABLE IF NOT EXISTS pr_reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pull_request_id INTEGER NOT NULL REFERENCES pull_requests(id) ON DELETE CASCADE,
+  reviewer_login TEXT,
+  reviewer_member_id INTEGER REFERENCES team_members(id) ON DELETE SET NULL,
+  state TEXT CHECK(state IN ('approved','changes_requested','commented','dismissed')),
+  submitted_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_pull_requests_sprint ON pull_requests(sprint);
+CREATE INDEX IF NOT EXISTS idx_pull_requests_repo ON pull_requests(repo_id);
+CREATE INDEX IF NOT EXISTS idx_pull_requests_author ON pull_requests(author_member_id);
+CREATE INDEX IF NOT EXISTS idx_pull_requests_story ON pull_requests(story_id);
+CREATE INDEX IF NOT EXISTS idx_pull_requests_merged_at ON pull_requests(merged_at);
+CREATE INDEX IF NOT EXISTS idx_pr_reviews_pr ON pr_reviews(pull_request_id);
+CREATE INDEX IF NOT EXISTS idx_pr_reviews_member ON pr_reviews(reviewer_member_id);

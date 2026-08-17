@@ -337,10 +337,10 @@ router.put('/:id', (req, res) => {
     const existing = db.prepare('SELECT * FROM team_members WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Team member not found' });
 
-    const { name, role, email, color, is_active, level } = req.body;
+    const { name, role, email, color, is_active, level, github_login } = req.body;
     db.prepare(`
       UPDATE team_members SET
-        name = ?, role = ?, email = ?, color = ?, is_active = ?, level = ?
+        name = ?, role = ?, email = ?, color = ?, is_active = ?, level = ?, github_login = ?
       WHERE id = ?
     `).run(
       name ?? existing.name,
@@ -349,6 +349,7 @@ router.put('/:id', (req, res) => {
       color ?? existing.color,
       is_active !== undefined ? is_active : existing.is_active,
       level !== undefined ? level : existing.level,
+      github_login !== undefined ? (github_login || null) : existing.github_login,
       req.params.id
     );
 

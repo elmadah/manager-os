@@ -8,9 +8,11 @@ import ProjectDetailPage from './pages/ProjectDetailPage';
 import TeamPage from './pages/TeamPage';
 import TeamMemberPage from './pages/TeamMemberPage';
 import SprintsPage from './pages/SprintsPage';
+import PullRequestsPage from './pages/PullRequestsPage';
 import TodosPage from './pages/TodosPage';
 import BlockersPage from './pages/BlockersPage';
 import ImportPage from './pages/ImportPage';
+import GitHubSettingsPage from './pages/GitHubSettingsPage';
 import NotesPage from './pages/NotesPage';
 import DigestPage from './pages/DigestPage';
 import SettingsPage from './pages/SettingsPage';
@@ -33,6 +35,7 @@ export default function App() {
           <Route path="/team" element={<TeamPage />} />
           <Route path="/team/:id" element={<TeamMemberPage />} />
           <Route path="/sprints" element={<SprintsPage />} />
+          <Route path="/pull-requests" element={<PullRequestsPage />} />
           <Route path="/todos" element={<TodosPage />} />
           <Route path="/blockers" element={<BlockersPage />} />
           <Route path="/notes" element={<NotesPage />} />
@@ -40,6 +43,7 @@ export default function App() {
           <Route path="/capacity" element={<CapacityListPage />} />
           <Route path="/capacity/:id" element={<CapacityPlanPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/github" element={<GitHubSettingsPage />} />
           <Route path="/settings/import-export" element={<ImportPage />} />
           <Route path="/settings/about" element={<AboutPage />} />
         </Route>

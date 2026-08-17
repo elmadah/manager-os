@@ -1336,6 +1336,7 @@ function EditMemberModal({ member, onClose, onSaved, onMarkAsLeft }) {
     role: member.role || '',
     level: member.level || '',
     email: member.email || '',
+    github_login: member.github_login || '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -1416,6 +1417,19 @@ function EditMemberModal({ member, onClose, onSaved, onMarkAsLeft }) {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
             />
           </div>
+
+          <label className="block">
+            <span className="text-xs text-gray-500">GitHub login</span>
+            <input
+              value={form.github_login || ''}
+              onChange={(e) => setForm({ ...form, github_login: e.target.value })}
+              placeholder="octocat"
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            />
+            <span className="text-[11px] text-gray-400">
+              Links this person to their pull requests and reviews.
+            </span>
+          </label>
 
           <div className="flex justify-end gap-3 pt-2">
             {member.is_active && onMarkAsLeft && (
