@@ -1,5 +1,6 @@
 const https = require('https');
 const http = require('http');
+const { selectProxy, createProxyAgent, httpProxyRequestOptions } = require('./httpProxy');
 
 // TLS verification is intentionally left on (the Node default) for GitHub
 // requests, unlike server/routes/jiraSettings.js which disables it with
@@ -59,24 +60,53 @@ function classifyGraphqlErrors(errors) {
   return 502;
 }
 
-function graphql(settings, query, variables) {
-  const endpoint = graphqlEndpoint(settings.base_url);
+/**
+ * Builds the request options for one GraphQL POST, routing through
+ * HTTPS_PROXY/HTTP_PROXY when the environment asks for it (see httpProxy.js —
+ * Node does not honour those variables on its own).
+ */
+function buildRequestOptions(endpoint, settings, env) {
   const parsed = new URL(endpoint);
-  const transport = parsed.protocol === 'https:' ? https : http;
+  const isHttps = parsed.protocol === 'https:';
+  const options = {
+    method: 'POST',
+    hostname: parsed.hostname,
+    port: parsed.port || (isHttps ? 443 : 80),
+    path: parsed.pathname + parsed.search,
+    headers: {
+      Authorization: `Bearer ${settings.pat_token}`,
+      'Content-Type': 'application/json',
+      'User-Agent': 'manager-os',
+      Accept: 'application/json',
+    },
+  };
+
+  const proxyUrl = selectProxy(parsed, env);
+  if (!proxyUrl) return { options, transport: isHttps ? https : http, proxyUrl: null };
+
+  if (isHttps) {
+    // https targets are tunnelled with CONNECT so TLS stays end-to-end.
+    options.agent = createProxyAgent(proxyUrl, { tunnelTimeout: REQUEST_TIMEOUT_MS });
+    return { options, transport: https, proxyUrl };
+  }
+
+  // http targets go to the proxy directly in absolute-form.
+  const overrides = httpProxyRequestOptions(proxyUrl, parsed);
+  options.hostname = overrides.hostname;
+  options.port = overrides.port;
+  options.path = overrides.path;
+  Object.assign(options.headers, overrides.headers);
+  return { options, transport: http, proxyUrl };
+}
+
+function graphql(settings, query, variables, env = process.env) {
+  const endpoint = graphqlEndpoint(settings.base_url);
   const payload = JSON.stringify({ query, variables });
+  const { options, transport } = buildRequestOptions(endpoint, settings, env);
 
   return new Promise((resolve, reject) => {
     const req = transport.request(
-      endpoint,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${settings.pat_token}`,
-          'Content-Type': 'application/json',
-          'User-Agent': 'manager-os',
-          Accept: 'application/json',
-        },
-      },
+      options,
       (res) => {
         res.setEncoding('utf8');
         let body = '';
@@ -135,4 +165,10 @@ async function fetchPullRequestPage(settings, { owner, name, cursor }) {
   };
 }
 
-module.exports = { graphql, fetchPullRequestPage, graphqlEndpoint, classifyGraphqlErrors };
+module.exports = {
+  graphql,
+  fetchPullRequestPage,
+  graphqlEndpoint,
+  classifyGraphqlErrors,
+  buildRequestOptions,
+};
