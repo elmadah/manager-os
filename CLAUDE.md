@@ -15,7 +15,7 @@ npm run dev
 npm run build
 
 # Start production server (serves built client + API on :3001)
-NODE_ENV=production npm start
+npm start
 
 # Seed the database with sample data
 cd server && npm run seed

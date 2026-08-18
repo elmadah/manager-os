@@ -38,7 +38,7 @@ Open [http://localhost:5173](http://localhost:5173).
 npm run build
 
 # Start the Express server, which serves the built client and API
-NODE_ENV=production npm start
+npm start
 ```
 
 Open [http://localhost:3001](http://localhost:3001).
@@ -56,7 +56,7 @@ npm run dev
 npm run build
 
 # Start production server
-NODE_ENV=production npm start
+npm start
 
 # Seed sample data
 cd server && npm run seed
@@ -169,7 +169,7 @@ Restoring replaces the current app data. Export a backup before testing restore 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `PORT` | `3001` | Express server port |
-| `NODE_ENV` | unset | Set to `production` to serve `client/dist` from Express |
+| `NODE_ENV` | unset | Express serves `client/dist` by default; set to `development` to disable that and use Vite's dev server instead |
 | `VITE_API_URL` | `/api` | API base URL used by the client |
 
 ## Development Notes
