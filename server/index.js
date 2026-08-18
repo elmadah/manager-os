@@ -1,15 +1,21 @@
 const express = require('express');
+const fs = require('fs');
 const path = require('path');
 const db = require('./db/init');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Production is the default: the built client is served unless NODE_ENV
+// explicitly asks for development (where Vite serves the client on :5173).
+const SERVE_CLIENT = process.env.NODE_ENV !== 'development';
+const CLIENT_DIST = path.join(__dirname, '../client/dist');
+
 app.use(express.json({ limit: '50mb' }));
 
-// Serve static files from client build in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
+// Serve static files from the client build
+if (SERVE_CLIENT) {
+  app.use(express.static(CLIENT_DIST));
 }
 
 // Routes
@@ -60,10 +66,10 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// In production, serve the React app for any non-API route
-if (process.env.NODE_ENV === 'production') {
+// Serve the React app for any non-API route
+if (SERVE_CLIENT) {
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+    res.sendFile(path.join(CLIENT_DIST, 'index.html'));
   });
 }
 
@@ -71,6 +77,9 @@ if (process.env.NODE_ENV === 'production') {
 db.init().then(() => {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    if (SERVE_CLIENT && !fs.existsSync(path.join(CLIENT_DIST, 'index.html'))) {
+      console.warn('No client build found at client/dist - run `npm run build`, or set NODE_ENV=development to serve the client with Vite.');
+    }
   });
 }).catch((err) => {
   console.error('Failed to initialize database:', err);
