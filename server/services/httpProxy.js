@@ -122,6 +122,39 @@ function proxyAuthHeader(proxyUrl) {
 }
 
 /**
+ * Extracts the auth schemes a 407 response is asking for.
+ *
+ * Which scheme the proxy demands decides whether this is fixable at all from
+ * Node: Basic works with credentials in the proxy URL, whereas NTLM, Negotiate
+ * and Kerberos need a handshake Node cannot perform, so the error has to say
+ * which one it saw rather than blanket-advising credentials.
+ */
+function parseProxyAuthenticate(head) {
+  return head
+    .split(/\r\n/)
+    .filter((line) => /^proxy-authenticate:/i.test(line))
+    .map((line) => line.slice(line.indexOf(':') + 1).trim().split(/[\s,]+/)[0])
+    .filter(Boolean);
+}
+
+function connectFailureHint(status, head) {
+  if (status !== 407) return '';
+  const schemes = parseProxyAuthenticate(head);
+  if (schemes.length === 0) {
+    return ' (proxy authentication required, but the proxy named no scheme — try credentials in the proxy URL: http://user:pass@host:port)';
+  }
+  const unsupported = schemes.filter((scheme) => !/^basic$/i.test(scheme));
+  if (unsupported.length === schemes.length) {
+    return (
+      ` (proxy requires ${schemes.join('/')} authentication, which Node cannot perform;` +
+      ' credentials in the proxy URL will not help — run a local authenticating relay such as cntlm or px,' +
+      ' or ask IT for a proxy path that accepts Basic auth)'
+    );
+  }
+  return ' (proxy authentication required — include credentials in the proxy URL: http://user:pass@host:port)';
+}
+
+/**
  * Opens a CONNECT tunnel through `proxyUrl` to host:port and hands the raw
  * tunnelled socket to the callback. The caller is responsible for any TLS
  * upgrade on top of it.
@@ -180,9 +213,11 @@ function connectViaProxy(proxyUrl, host, port, timeoutMs, callback) {
       const statusLine = head.slice(0, head.indexOf('\r\n'));
       const status = Number(/^HTTP\/1\.[01] (\d{3})/.exec(statusLine)?.[1]);
       if (status !== 200) {
-        const hint =
-          status === 407 ? ' (proxy authentication required — include credentials in the proxy URL)' : '';
-        return fail(new Error(`Proxy ${proxyLabel} refused CONNECT to ${target}: ${statusLine.trim()}${hint}`));
+        return fail(
+          new Error(
+            `Proxy ${proxyLabel} refused CONNECT to ${target}: ${statusLine.trim()}${connectFailureHint(status, head)}`
+          )
+        );
       }
 
       if (settled) return;
@@ -253,6 +288,8 @@ function httpProxyRequestOptions(proxyUrl, targetUrl) {
 
 module.exports = {
   selectProxy,
+  parseProxyAuthenticate,
+  connectFailureHint,
   shouldBypassProxy,
   createProxyAgent,
   httpProxyRequestOptions,

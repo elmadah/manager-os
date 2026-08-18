@@ -1,7 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
-const { selectProxy, shouldBypassProxy, createProxyAgent, httpProxyRequestOptions } = require('./httpProxy');
+const {
+  selectProxy,
+  shouldBypassProxy,
+  createProxyAgent,
+  httpProxyRequestOptions,
+  parseProxyAuthenticate,
+  connectFailureHint,
+} = require('./httpProxy');
 
 // --- selectProxy -----------------------------------------------------------
 
@@ -235,4 +242,73 @@ test('createProxyAgent: an unreachable proxy names the proxy rather than the tar
     req.end();
   });
   assert.match(err.message, /Could not reach the proxy at 127\.0\.0\.1:1/);
+});
+
+// --- 407 scheme detection --------------------------------------------------
+
+const head407 = (headers) => `HTTP/1.1 407 Proxy Authentication Required\r\n${headers}\r\n\r\n`;
+
+test('parseProxyAuthenticate: extracts the scheme, dropping realm parameters', () => {
+  assert.deepEqual(parseProxyAuthenticate(head407('Proxy-Authenticate: Basic realm="corp"')), ['Basic']);
+});
+
+test('parseProxyAuthenticate: collects every offered scheme', () => {
+  const head = head407('Proxy-Authenticate: Negotiate\r\nProxy-Authenticate: NTLM');
+  assert.deepEqual(parseProxyAuthenticate(head), ['Negotiate', 'NTLM']);
+});
+
+test('parseProxyAuthenticate: header matching is case insensitive', () => {
+  assert.deepEqual(parseProxyAuthenticate(head407('proxy-authenticate: basic')), ['basic']);
+});
+
+test('parseProxyAuthenticate: no such header yields no schemes', () => {
+  assert.deepEqual(parseProxyAuthenticate(head407('Via: 1.1 corp')), []);
+});
+
+test('connectFailureHint: Basic advises credentials in the proxy URL', () => {
+  assert.match(connectFailureHint(407, head407('Proxy-Authenticate: Basic realm="corp"')), /credentials in the proxy URL/);
+});
+
+test('connectFailureHint: NTLM-only says credentials will not help', () => {
+  const hint = connectFailureHint(407, head407('Proxy-Authenticate: NTLM'));
+  assert.match(hint, /NTLM/);
+  assert.match(hint, /will not help/);
+  assert.match(hint, /cntlm|px/);
+});
+
+test('connectFailureHint: a Basic option alongside NTLM is still actionable', () => {
+  const hint = connectFailureHint(407, head407('Proxy-Authenticate: Negotiate\r\nProxy-Authenticate: Basic realm="x"'));
+  assert.match(hint, /credentials in the proxy URL/);
+  assert.doesNotMatch(hint, /will not help/);
+});
+
+test('connectFailureHint: a 407 naming no scheme still suggests something', () => {
+  assert.match(connectFailureHint(407, head407('Via: 1.1 corp')), /named no scheme/);
+});
+
+test('connectFailureHint: non-407 statuses get no hint', () => {
+  assert.equal(connectFailureHint(403, head407('Proxy-Authenticate: Basic')), '');
+  assert.equal(connectFailureHint(502, ''), '');
+});
+
+test('createProxyAgent: a 407 error reports the scheme the proxy asked for', async () => {
+  await withProxy(
+    (req, socket) => {
+      socket.write('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: NTLM\r\n\r\n');
+      socket.end();
+    },
+    async (port) => {
+      const agent = createProxyAgent(new URL(`http://127.0.0.1:${port}`), { tunnelTimeout: 5000 });
+      const err = await new Promise((resolve) => {
+        const req = require('https').request(
+          { hostname: 'api.github.com', port: 443, path: '/graphql', method: 'POST', agent },
+          () => resolve(null)
+        );
+        req.on('error', resolve);
+        req.end();
+      });
+      assert.match(err.message, /NTLM/);
+      assert.match(err.message, /will not help/);
+    }
+  );
 });
